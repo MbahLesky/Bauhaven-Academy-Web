@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  /* Bauhaven base palette — from the real brand config, not estimated */
+  --bauhaven-red: #D72638;
+  --bauhaven-orange: #F26B3B;
+  --bauhaven-gold: #FED500;
+  --bauhaven-green: #54BE8D;
+  --bauhaven-blue: #26AAD1;
+  --bauhaven-dark: #1E1E1E;
+  --bauhaven-light: #F8F8F8;
+
+  /* Academy's accent pair (orange -> gold) — functional use only, see Bauhaven-Brand-Guidelines.md */
+  --accent: var(--bauhaven-orange);
+  --accent-2: var(--bauhaven-gold);
+  --accent-gradient: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+
+  /* Semantic colors — deliberately distinct from the accent pair above, see brand guidelines */
+  --success: #1B7A43;
+  --warning: #8A5A00;
+  --danger: var(--bauhaven-red);
+
+  --background: var(--bauhaven-light);
+  --foreground: var(--bauhaven-dark);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-bauhaven-red: var(--bauhaven-red);
+  --color-bauhaven-orange: var(--bauhaven-orange);
+  --color-bauhaven-gold: var(--bauhaven-gold);
+  --color-bauhaven-green: var(--bauhaven-green);
+  --color-bauhaven-blue: var(--bauhaven-blue);
+  --font-display: "Montserrat", sans-serif;
+  --font-sans: "Archivo", sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Archivo", sans-serif;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: "Montserrat", sans-serif;
+}
