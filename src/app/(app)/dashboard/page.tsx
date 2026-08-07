@@ -1,4 +1,8 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getOpenTasksPreview } from "@/lib/task-queries";
+import { getAttendanceStats } from "@/lib/attendance-queries";
+import { formatTaskStatus, STATUS_VARIANTS } from "@/lib/task-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -6,26 +10,32 @@ import { Badge } from "@/components/ui/badge";
 // `npm run build` doesn't need real Supabase credentials to succeed.
 export const dynamic = "force-dynamic";
 
+/** Enough to be useful on a phone without turning Home into the Tasks screen. */
+const PREVIEW_TASK_COUNT = 3;
+
 async function getDashboardData() {
   const supabase = await createClient();
 
   // RLS scopes these to the current user automatically — no explicit .eq("user_id", ...)
   // needed, per Bauhaven-Coding-Standards.md: trust the policy, don't duplicate it here.
+  //
+  // The task read goes through the shared `getOpenTasksPreview` rather than its own
+  // query, so this preview and the Tasks screen can't disagree about what counts as open
+  // or how a deadline is rendered — they were already diverging on the second one.
   const [enrollment, openTasks, attendance] = await Promise.all([
     supabase.from("enrollments").select("id, program_id, status").eq("status", "active").limit(1).maybeSingle(),
-    supabase.from("tasks").select("id, title, deadline, status").eq("status", "open").order("deadline").limit(3),
-    supabase.from("attendance_records").select("id, status"),
+    getOpenTasksPreview(PREVIEW_TASK_COUNT),
+    // Shared with the Attendance screen rather than computed here. This preview used to
+    // do `present / all rows`, which was wrong twice over: it counted a Staff correction
+    // and the row it corrected as two separate sessions, and it counted an excused
+    // absence against the student. Both screens now read one function.
+    getAttendanceStats(),
   ]);
-
-  const attendanceRows = attendance.data ?? [];
-  const presentCount = attendanceRows.filter((r) => r.status === "present").length;
-  const attendanceRate =
-    attendanceRows.length > 0 ? Math.round((presentCount / attendanceRows.length) * 100) : null;
 
   return {
     hasActiveProgram: !!enrollment.data,
-    openTasks: openTasks.data ?? [],
-    attendanceRate,
+    openTasks: openTasks.tasks,
+    attendanceRate: attendance.stats.rate,
     errors: [enrollment.error, openTasks.error, attendance.error].filter(Boolean),
   };
 }
@@ -59,8 +69,13 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
-        Due soon
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">
+          Due soon
+        </span>
+        <Link href="/tasks" className="text-xs font-semibold text-accent">
+          See all
+        </Link>
       </div>
       {data.openTasks.length === 0 ? (
         <Card className="mb-5">
@@ -69,16 +84,23 @@ export default async function DashboardPage() {
       ) : (
         data.openTasks.map((task) => (
           <Card key={task.id} className="mb-2.5">
-            <CardContent className="flex items-center justify-between py-3.5">
-              <div>
+            <CardContent className="flex items-center justify-between gap-3 py-3.5">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold">{task.title}</div>
-                {task.deadline && (
-                  <div className="text-xs text-neutral-500">
-                    Due {new Date(task.deadline).toLocaleDateString()}
-                  </div>
-                )}
+                <div className="text-xs text-neutral-500">
+                  {task.isSelfCreated && "Self-created · "}
+                  {/* Already formatted in Africa/Douala by the shared query. Rendering
+                      the raw timestamp with toLocaleDateString here meant the server and
+                      the browser could disagree, and told a travelling student the wrong
+                      day. */}
+                  {task.deadline ? `Due ${task.deadline}` : "No deadline"}
+                </div>
               </div>
-              <Badge variant="warning">Open</Badge>
+              {/* Aligned with Admin-web: open is neutral, not warning. Nothing is wrong
+                  with an open task — it's just work to do. */}
+              <Badge variant={STATUS_VARIANTS.open} className="flex-shrink-0">
+                {formatTaskStatus("open")}
+              </Badge>
             </CardContent>
           </Card>
         ))
@@ -86,8 +108,13 @@ export default async function DashboardPage() {
 
       {data.attendanceRate !== null && (
         <>
-          <div className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-neutral-400">
-            Your attendance
+          <div className="mb-2 mt-5 flex items-baseline justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">
+              Your attendance
+            </span>
+            <Link href="/attendance" className="text-xs font-semibold text-accent">
+              Check in
+            </Link>
           </div>
           <Card>
             <CardContent className="text-center">
