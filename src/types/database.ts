@@ -30,6 +30,14 @@ type EnrollmentsRow = {
   end_date: string | null;
 };
 
+// Only what Academy reads: the program name shown under a screen heading. Admin-web
+// owns the full shape — this app never writes here.
+type ProgramsRow = {
+  id: string;
+  title_en: string;
+  title_fr: string | null;
+};
+
 type TasksRow = {
   id: string;
   program_id: string | null;
@@ -48,6 +56,21 @@ type SubmissionsRow = {
   content_url: string | null;
   submitted_at: string;
   grade: string | null;
+};
+
+/**
+ * Grade and feedback are two different rows, matching what Admin-web writes:
+ * the grade is free text on `submissions.grade` (the only column in the schema that can
+ * hold one), while `feedback` carries a required comment and an optional 1-5 rating that
+ * is *not* the grade. See Bauhaven-Database-Schema.md, "Where a grade lives".
+ */
+type FeedbackRow = {
+  id: string;
+  submission_id: string;
+  author_id: string;
+  comment: string;
+  rating: number | null;
+  created_at: string;
 };
 
 type AttendanceSessionsRow = {
@@ -105,8 +128,10 @@ export type Database = {
     Tables: {
       users: TableShape<UsersRow>;
       enrollments: TableShape<EnrollmentsRow>;
+      programs: TableShape<ProgramsRow>;
       tasks: TableShape<TasksRow>;
       submissions: TableShape<SubmissionsRow>;
+      feedback: TableShape<FeedbackRow>;
       attendance_sessions: TableShape<AttendanceSessionsRow>;
       attendance_records: TableShape<AttendanceRecordsRow>;
       requests: TableShape<RequestsRow>;
@@ -114,7 +139,19 @@ export type Database = {
       issue_reports: TableShape<IssueReportsRow>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      /**
+       * The `security definer` helper RLS itself calls, exposed over PostgREST because
+       * `permissions` and `user_permission_overrides` are both admin-only — a student
+       * cannot read their own grant, so this is the only way to ask whether they hold
+       * the individual `tasks:create` override. Reports on `auth.uid()` only.
+       * Same approach Admin-web uses for finance access.
+       */
+      auth_has_permission: {
+        Args: { p_module: string; p_action: string };
+        Returns: boolean;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
