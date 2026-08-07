@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — real values never get committed
 .env*
+# ...but the template must be, or the README's setup step points at a file that
+# has never existed in the repo. Same fix as Admin-web's.
+!.env.example
 
 # vercel
 .vercel

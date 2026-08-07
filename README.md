@@ -4,9 +4,19 @@ Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks,
 
 ## Status
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, and `npm run lint` all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 9/9) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
 
-**Not yet built:** Tasks, Attendance, Requests, Report Issue, Testimony, and Profile are nav links with no page behind them yet. Auth isn't wired up.
+**Not yet built:** Tasks, Attendance, Requests, Report Issue, Testimony, and Profile are nav links with no page behind them yet.
+
+**Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
+
+**It's a port of Admin-web's, not a re-derivation.** Same product, same Supabase Auth instance, one login that works across both — so the same middleware, the same Server Action, and the same account-enumeration reasoning. Three things genuinely differ, and only because Academy differs:
+
+- The login screen is phone-first. Admin's full-width layout is its small-screen fallback; here it's the design, in the same `max-w-md` column the app shell uses. The email field sets `autocapitalize="none"` / `autocorrect="off"` / `inputmode="email"`, because a phone keyboard capitalising the first letter silently breaks an address before validation ever sees it. There's a test for that.
+- The Zod schema uses `z.email()` rather than Admin's `z.string().email()` — the chained form is deprecated in Zod 4, and this repo's `AGENTS.md` says to heed deprecations. Same validation, same message.
+- **Sign-out lives in the header, temporarily.** It belongs on Profile, alongside "My requests", the language toggle and testimonies — but Profile isn't built, and shipping auth with no way to sign out would be worse than a control in the wrong place. Move it when Profile lands.
+
+**The profile switcher is deliberately not here.** The wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs — but it needs a real notion of which role a session is *acting as*, somewhere to persist that, and screens whose content actually varies by it. Built inside an auth pass it would have been a dropdown that changes nothing. It stays in M3's gate; see `Bauhaven-Architecture-Plan.md` §6, "Auth as built". Relatedly, Academy does **not** yet read `user_roles` the way Admin does — nothing here is role-gated yet, so a lookup with no consumer would be speculative. Both arrive together with the switcher.
 
 ## A genuinely tricky bug worth knowing about
 
@@ -14,10 +24,10 @@ Every Supabase query on this project's dashboard was silently typed as `never`, 
 
 ## Setup
 
-Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real Supabase values, `npm run dev`.
+Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real Supabase values, `npm run dev`. (`.env.example` didn't actually exist until the auth pass, and `.gitignore`'s `.env*` would have swallowed it anyway — both fixed.)
 
 ## Next steps
 
-1. Auth, including the profile switcher for users holding more than one active role
+1. The **profile switcher** for users holding more than one active role — deliberately excluded from the auth pass, see below
 2. Build out Tasks, Attendance (with the offline-tolerant check-in queue), Requests, Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
 3. Generate real types once a Supabase project exists, same command as Admin-web
