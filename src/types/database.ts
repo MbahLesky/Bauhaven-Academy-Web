@@ -84,6 +84,15 @@ type AttendanceRecordsRow = {
   session_id: string;
   user_id: string;
   status: "present" | "absent" | "excused";
+  // Append-only: `attendance_records` has no UPDATE policy, so a Staff correction is a
+  // new row pointing at the one it replaces. Every reader has to collapse the chain —
+  // see src/lib/attendance-resolve.ts.
+  corrects_id: string | null;
+  created_at: string;
+  // When the student actually arrived, as distinct from when the row was written.
+  // Admin-web leaves this null when Staff mark a roster on someone's behalf, precisely
+  // so a real self-check-in is distinguishable from a recorded one.
+  checked_in_at: string | null;
 };
 
 type RequestsRow = {

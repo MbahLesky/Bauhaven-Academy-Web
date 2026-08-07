@@ -4,9 +4,9 @@ Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks,
 
 ## Status
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 42/42) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 75/75) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
 
-**Not yet built:** Attendance, Requests, Report Issue, Testimony, and Profile are nav links with no page behind them yet.
+**Not yet built:** Requests, Report Issue, Testimony, and Profile are nav links with no page behind them yet.
 
 **Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
 
@@ -24,6 +24,16 @@ Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm r
 
 **The Home preview and the Tasks screen share one query module.** They were already diverging: Home formatted deadlines with `toLocaleDateString`, which renders in the browser's zone and told a travelling student the wrong day, while Admin-web pins `Africa/Douala`. Both now read through `src/lib/task-queries.ts`. Neither filters by `assigned_to` — `tasks_select` already scopes to the current user, and an explicit filter would both duplicate the policy and hide self-created tasks, which match on `created_by`.
 
+**Attendance is built end-to-end:** today's session for the student's enrolled program, a large check-in button, attendance rate and sessions-attended, and history with Present/Excused/Absent badges matching Admin-web's roster exactly.
+
+**No offline queue, and the wireframe's promise of one was removed.** The card read "Works offline — syncs when you're back online"; this app can't honour that. `Bauhaven-Architecture-Plan.md` §3 gives web clients best-effort caching and reserves queued writes for the native clients' Drift storage — and a web page genuinely can't guarantee a queued write ever syncs, since the tab closes, the browser evicts storage, and there's no durable background sync in this stack. For attendance specifically a false "saved, will sync" is the worst available failure: the student believes they're present and the register disagrees. The card now says a connection is needed, a failure is a plain error with a retry, and there's a test asserting the old wording never comes back. That fix also surfaced a contradiction *inside* §3 — one line gave web best-effort caching, the next said attendance queues "regardless of client". Corrected there too.
+
+**Check-in is three outcomes, not ok/error.** Success, already-recorded, and refused by RLS mean genuinely different things to someone standing in a doorway. "Already recorded" is announced as a `status` rather than an `alert` — nothing failed and nothing was lost. A refusal from `attendance_records_insert` (not actively enrolled in the session's program) is an expected, handled case, not a bug to route around: the page scopes sessions to the student's program, but the policy is the authority and the two can disagree — an enrolment withdrawn between load and tap, or a stale tab.
+
+**The duplicate check is the app's job, because the schema has no unique constraint on `(session_id, user_id)`.** A second insert would succeed and leave two standing rows for one session — the double-count the append-only chain exists to prevent, inflating the student's own rate. The action resolves the existing record first and writes nothing if one stands.
+
+**The Home preview's attendance rate was wrong twice over.** It computed `present ÷ all rows`, which counted a Staff correction *and* the row it corrected as two sessions, and counted an excused absence against the student. `src/lib/append-only.ts` is ported from Admin-web to collapse corrections, excused sessions are excluded from the denominator (an approved absence is the system saying it doesn't count against you), and both screens now share one function. **This changes the number Home used to show.**
+
 **The profile switcher is deliberately not here.** The wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs — but it needs a real notion of which role a session is *acting as*, somewhere to persist that, and screens whose content actually varies by it. Built inside an auth pass it would have been a dropdown that changes nothing. It stays in M3's gate; see `Bauhaven-Architecture-Plan.md` §6, "Auth as built". Relatedly, Academy does **not** yet read `user_roles` the way Admin does — nothing here is role-gated yet, so a lookup with no consumer would be speculative. Both arrive together with the switcher.
 
 ## A genuinely tricky bug worth knowing about
@@ -37,5 +47,5 @@ Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real
 ## Next steps
 
 1. The **profile switcher** for users holding more than one active role — deliberately excluded from the auth pass, see below
-2. Build out Attendance (with the offline-tolerant check-in queue), Requests, Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
+2. Build out Requests, Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
 3. Generate real types once a Supabase project exists, same command as Admin-web

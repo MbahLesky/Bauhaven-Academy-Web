@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getOpenTasksPreview } from "@/lib/task-queries";
+import { getAttendanceStats } from "@/lib/attendance-queries";
 import { formatTaskStatus, STATUS_VARIANTS } from "@/lib/task-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,18 +25,17 @@ async function getDashboardData() {
   const [enrollment, openTasks, attendance] = await Promise.all([
     supabase.from("enrollments").select("id, program_id, status").eq("status", "active").limit(1).maybeSingle(),
     getOpenTasksPreview(PREVIEW_TASK_COUNT),
-    supabase.from("attendance_records").select("id, status"),
+    // Shared with the Attendance screen rather than computed here. This preview used to
+    // do `present / all rows`, which was wrong twice over: it counted a Staff correction
+    // and the row it corrected as two separate sessions, and it counted an excused
+    // absence against the student. Both screens now read one function.
+    getAttendanceStats(),
   ]);
-
-  const attendanceRows = attendance.data ?? [];
-  const presentCount = attendanceRows.filter((r) => r.status === "present").length;
-  const attendanceRate =
-    attendanceRows.length > 0 ? Math.round((presentCount / attendanceRows.length) * 100) : null;
 
   return {
     hasActiveProgram: !!enrollment.data,
     openTasks: openTasks.tasks,
-    attendanceRate,
+    attendanceRate: attendance.stats.rate,
     errors: [enrollment.error, openTasks.error, attendance.error].filter(Boolean),
   };
 }
@@ -108,8 +108,13 @@ export default async function DashboardPage() {
 
       {data.attendanceRate !== null && (
         <>
-          <div className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-neutral-400">
-            Your attendance
+          <div className="mb-2 mt-5 flex items-baseline justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">
+              Your attendance
+            </span>
+            <Link href="/attendance" className="text-xs font-semibold text-accent">
+              Check in
+            </Link>
           </div>
           <Card>
             <CardContent className="text-center">

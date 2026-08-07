@@ -68,3 +68,48 @@ export function bauhavenLocalToInstant(localDateTime: string | null): string | n
 
   return parsed.toISOString();
 }
+
+// "en-CA" formats as YYYY-MM-DD, which is the shape a `date` column wants — so today's
+// date never round-trips through a parse.
+const ISO_DATE_IN_BAUHAVEN = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: BAUHAVEN_TIME_ZONE,
+});
+
+// The wireframe's history rows: "Mon, 3 Aug". Rendered in UTC deliberately — see
+// formatSessionDate.
+const SESSION_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/**
+ * Today's date in Bauhaven's timezone, as YYYY-MM-DD.
+ *
+ * "Is there a session today?" has to be asked in Cameroon's day, not the browser's or the
+ * server's — a student checking in at 00:30 local time somewhere else would otherwise be
+ * offered yesterday's session, or none at all.
+ */
+export function todayInBauhaven(now: Date = new Date()): string {
+  return ISO_DATE_IN_BAUHAVEN.format(now);
+}
+
+/**
+ * Renders a `session_date` column (YYYY-MM-DD) as "Mon, 3 Aug".
+ *
+ * Formatted in UTC rather than Bauhaven's zone on purpose: a date-only value carries no
+ * time and no zone, so running it through a timezone conversion is exactly how a session
+ * on the 3rd renders as the 2nd. Parsing as UTC midnight and formatting as UTC makes the
+ * round trip lossless — the same reasoning Admin-web's `formatDateOnly` documents.
+ */
+export function formatSessionDate(value: string | null): string | null {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return SESSION_DATE_FORMAT.format(parsed);
+}
