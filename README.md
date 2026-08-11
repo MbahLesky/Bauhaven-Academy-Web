@@ -4,9 +4,9 @@ Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks,
 
 ## Status
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 103/103) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 129/129) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
 
-**Not yet built:** Report Issue, Testimony, and Profile. `/profile` is in the bottom nav with no page behind it — a dead link that predates this work and outlives it.
+**Not yet built:** Testimony and Profile. `/profile` is in the bottom nav with no page behind it — a dead link that predates this work and outlives it.
 
 **Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
 
@@ -44,6 +44,20 @@ Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm r
 
 **This does not close Admin-web's Attendance TODO, and it's a two-sided gap.** Feature #18's auto-excuse from an approved absence Request is still marked `TODO(requests)` in Admin-web, because it needs an *approved* state that nothing can currently produce. Both halves are the same feature: no approval screen here, and no derived excuse there.
 
+**Issue reporting is built — the submitting half only.** A student picks a category, describes the problem, and sees their own past reports with status badges. Home's quick-action row is now a two-column grid (Request absence, Report an issue); Share feedback still has no screen, so it stays out rather than becoming a dead button.
+
+**"Issue reports route to Staff by category" is not implemented, and never was.** Checked against the migrations rather than taken from the Core spec: the word "category" appears in exactly two places in the whole schema — the `issue_reports.category` column (`text not null default 'general'`, **no check constraint**) and the index `idx_issue_reports_status_category`. No per-category staff assignment table exists, and nothing links a category to `user_roles.staff_sub_role` or to a permission. `issue_reports_select` and `issue_reports_update` both gate on plain `auth_is_admin_or_staff()` with **no category arm**, so any Staff member or Admin can read *and resolve* any report. The category is a filterable label, not a destination. Core spec annotated.
+
+**The category list was chosen here, because nothing upstream enumerates it:** `equipment` (Equipment or facilities — the wireframe's own example), `program` (Course or program), `access` (Account or access), `safety` (Safety or wellbeing), `general` (Something else). The first two mirror the nullable `asset_id` and `program_id` columns the schema already carries; `general` is kept verbatim because it's the column default, so a row written by anything that doesn't set the column lands in a bucket this screen displays. Stored values are stable lowercase ids, never the labels — a triage filter should match `'equipment'`, and the label has to translate EN/FR without rewriting rows.
+
+**Safety is its own category, and the screen is explicit it doesn't summon anyone.** With no routing and no triage screen, telling a student to wait would be wrong, so the footer says to tell a mentor directly as well. Same honesty rule as Requests and Attendance.
+
+**A row type was wrong: `issue_reports.status` is three states, not two.** The check constraint is `('open','in_progress','resolved')` and the type said `open | resolved`, which would have made a triaged report an impossible value the moment anything set it. Fixed; all three render as "Open", "Being looked at", "Resolved".
+
+**No triage screen exists anywhere, and this one needs no migration.** Unlike Requests approval, `issue_reports_update` already lets Admin/Staff resolve — what's missing is only a screen, despite Admin-web's sidebar wireframe carrying "Issue Reports" with a count badge.
+
+**Three open threads now point at the same missing surface** — an Admin-web approvals/triage view. Requests approval (blocked: needs a migration *and* a quorum/routing design), Attendance auto-excuse (blocked on Requests approval, then free), Issue Reports resolution (buildable today, no migration). Academy-web now has three student-facing submission flows whose staff-facing halves are all missing: students can put things into the system faster than anyone can take them out. Worth settling before Testimony and Profile push Academy further ahead.
+
 **The profile switcher is deliberately not here.** The wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs — but it needs a real notion of which role a session is *acting as*, somewhere to persist that, and screens whose content actually varies by it. Built inside an auth pass it would have been a dropdown that changes nothing. It stays in M3's gate; see `Bauhaven-Architecture-Plan.md` §6, "Auth as built". Relatedly, Academy does **not** yet read `user_roles` the way Admin does — nothing here is role-gated yet, so a lookup with no consumer would be speculative. Both arrive together with the switcher.
 
 ## A genuinely tricky bug worth knowing about
@@ -57,6 +71,6 @@ Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real
 ## Next steps
 
 1. The **profile switcher** for users holding more than one active role — deliberately excluded from the auth pass, see below
-2. **Requests approval** — the RLS migration first (see above), then an Admin-web screen; that also unblocks Admin-web's attendance auto-excuse
-3. Build out Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
+2. **Admin-web triage/approvals surface**, in dependency order: Issue Reports resolution (buildable now), then the Requests-approval migration and screen, which also unblocks Admin-web's attendance auto-excuse
+3. Build out Testimony and Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
 4. Generate real types once a Supabase project exists, same command as Admin-web

@@ -13,6 +13,12 @@ export const dynamic = "force-dynamic";
 /** Enough to be useful on a phone without turning Home into the Tasks screen. */
 const PREVIEW_TASK_COUNT = 3;
 
+/** The wireframe's quick actions, minus the ones with no screen behind them yet. */
+const QUICK_ACTIONS = [
+  { href: "/requests", label: "Request absence" },
+  { href: "/report", label: "Report an issue" },
+] as const;
+
 async function getDashboardData() {
   const supabase = await createClient();
 
@@ -71,20 +77,21 @@ export default async function DashboardPage() {
 
       {/*
         The wireframe's quick-action row has three entries — Request absence, Report an
-        issue, Share feedback. Only the first has a screen behind it; the other two are
-        separate features nobody has built yet. They're left out rather than rendered as
-        dead buttons, and slot in beside this one (as a grid) once they exist.
+        issue, Share feedback. The first two now have screens behind them; Share feedback
+        (`testimonies`) is a separate feature nobody has built, so it's left out rather
+        than rendered as a dead button and slots into the third column once it exists.
       */}
-      <Link href="/requests" className="mb-5 block">
-        <Card className="transition-colors hover:border-accent">
-          <CardContent className="flex min-h-12 items-center justify-between py-3.5">
-            <span className="text-sm font-semibold">Request absence</span>
-            <span aria-hidden="true" className="text-neutral-300">
-              ›
-            </span>
-          </CardContent>
-        </Card>
-      </Link>
+      <div className="mb-5 grid grid-cols-2 gap-2.5">
+        {QUICK_ACTIONS.map((action) => (
+          <Link key={action.href} href={action.href}>
+            <Card className="h-full transition-colors hover:border-accent">
+              <CardContent className="flex min-h-16 items-center px-4 py-3.5 text-sm font-semibold">
+                {action.label}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
 
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">

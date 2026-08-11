@@ -120,7 +120,11 @@ type IssueReportsRow = {
   reporter_id: string;
   category: string;
   description: string;
-  status: "open" | "resolved";
+  // Three states, not two. The check constraint in 001_initial_schema.sql is
+  // ('open','in_progress','resolved'); this was typed as open|resolved, which would have
+  // made a triaged report an impossible value the moment anything set it.
+  status: "open" | "in_progress" | "resolved";
+  created_at: string;
 };
 
 // Insert/Update are loosely typed (Partial<Row>) here since the current pages only
