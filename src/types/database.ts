@@ -18,6 +18,10 @@ type UsersRow = {
   id: string;
   email: string | null;
   name: string;
+  // The student's own content language, which is what routes a testimony to content_en
+  // or content_fr. Distinct from interface language, which nothing reads yet — next-intl
+  // has never been set up in either app.
+  preferred_language: "en" | "fr";
   created_at: string;
 };
 
@@ -110,9 +114,13 @@ type TestimoniesRow = {
   id: string;
   user_id: string;
   program_id: string | null;
-  content_en: string;
+  // Nullable since 007_testimonies_bilingual_content.sql — a testimony written in French
+  // is a complete testimony with content_en null. The table-level check guarantees at
+  // least one of the two is present.
+  content_en: string | null;
   content_fr: string | null;
   status: "submitted" | "published";
+  created_at: string;
 };
 
 type IssueReportsRow = {
