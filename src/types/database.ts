@@ -18,11 +18,27 @@ type UsersRow = {
   id: string;
   email: string | null;
   name: string;
+  phone: string | null;
+  location: string | null;
+  // A URL, not a file. No storage bucket is configured on this project, so nothing in
+  // either app can currently produce one — the Profile screen renders it if a value
+  // exists and offers no upload.
+  profile_photo_url: string | null;
   // The student's own content language, which is what routes a testimony to content_en
   // or content_fr. Distinct from interface language, which nothing reads yet — next-intl
   // has never been set up in either app.
   preferred_language: "en" | "fr";
   created_at: string;
+};
+
+type UserRolesRow = {
+  id: string;
+  user_id: string;
+  role: "admin" | "staff" | "intern" | "student" | "holiday_maker";
+  // Only meaningful for staff; a student's row leaves it null.
+  staff_sub_role: "auditor" | "coordinator" | "programme_manager" | "mentor" | null;
+  program_id: string | null;
+  status: "active" | "inactive";
 };
 
 type EnrollmentsRow = {
@@ -149,6 +165,7 @@ export type Database = {
   public: {
     Tables: {
       users: TableShape<UsersRow>;
+      user_roles: TableShape<UserRolesRow>;
       enrollments: TableShape<EnrollmentsRow>;
       programs: TableShape<ProgramsRow>;
       tasks: TableShape<TasksRow>;

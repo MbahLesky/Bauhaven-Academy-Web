@@ -4,9 +4,9 @@ Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks,
 
 ## Status
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 151/151) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 167/167) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
 
-**Not yet built:** Profile. `/profile` is in the bottom nav with no page behind it — a dead link that predates this work and outlives it.
+**Every screen in the wireframe is now built** — Home, Tasks, Attendance, Requests, Report a problem, Share feedback, Profile. The bottom nav has no dead links left.
 
 **Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
 
@@ -14,7 +14,7 @@ Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm r
 
 - The login screen is phone-first. Admin's full-width layout is its small-screen fallback; here it's the design, in the same `max-w-md` column the app shell uses. The email field sets `autocapitalize="none"` / `autocorrect="off"` / `inputmode="email"`, because a phone keyboard capitalising the first letter silently breaks an address before validation ever sees it. There's a test for that.
 - The Zod schema uses `z.email()` rather than Admin's `z.string().email()` — the chained form is deprecated in Zod 4, and this repo's `AGENTS.md` says to heed deprecations. Same validation, same message.
-- **Sign-out lives in the header, temporarily.** It belongs on Profile, alongside "My requests", the language toggle and testimonies — but Profile isn't built, and shipping auth with no way to sign out would be worse than a control in the wrong place. Move it when Profile lands.
+- **Sign-out lived in the header temporarily; it now lives on Profile,** where the wireframe puts it. One sign-out in the app rather than two that could drift. It's also rendered on Profile's error boundary, deliberately — that page is the only way out of a session, so someone signed into the wrong account behind a failing profile read would otherwise be stuck.
 
 **Tasks is built end-to-end:** Open and Submitted-and-graded sections, submitting a link against an open task, self-created tasks for students who hold the individual `tasks:create` override, and the grade plus every feedback comment once a mentor has looked.
 
@@ -72,7 +72,17 @@ Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm r
 
 **This is the one Academy query that must filter by the caller itself.** `testimonies_select` is `user_id = auth.uid() or status = 'published' or auth_is_admin_or_staff()`, and that middle arm is **not scoped to the caller** — trusting RLS the way the task, request and issue-report queries do would have made a screen headed "Your testimonies" list every published testimony in the company. `attendance_sessions_select` being `using (true)` is the other unscoped policy; this is the more dangerous one, because these rows belong to identifiable other people.
 
-**The profile switcher is deliberately not here.** The wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs — but it needs a real notion of which role a session is *acting as*, somewhere to persist that, and screens whose content actually varies by it. Built inside an auth pass it would have been a dropdown that changes nothing. It stays in M3's gate; see `Bauhaven-Architecture-Plan.md` §6, "Auth as built". Relatedly, Academy does **not** yet read `user_roles` the way Admin does — nothing here is role-gated yet, so a lookup with no consumer would be speculative. Both arrive together with the switcher.
+**Profile is built, and it closes out Academy-web's screen set.** Initials avatar (or the photo, if a URL is ever set), name and email, a working language toggle, links to Testimony/Requests/Report, read-only contact details, a read-only Roles list, and sign-out.
+
+**Nothing needed a migration — the schema was already ahead of the apps.** `users` carries `name`, `email`, `phone`, `location`, `profile_photo_url` and `preferred_language` (`not null default 'en' check in ('en','fr')`); `user_roles` carries `role`, `staff_sub_role`, `program_id` and `status`. Checked before assuming, and everything the wireframe draws is storable today.
+
+**The language toggle is real, not a placeholder — and it already has a consumer.** It writes `users.preferred_language`, which the testimony form reads to decide whether a student's words go to `content_en` or `content_fr`. Flipping it changes where the next testimony is stored. **What it does not do is translate the interface,** and the screen says so in as many words, because letting someone tap FR and conclude the app is broken is worse than admitting the gap. **Full next-intl setup is recommended as its own next task** — it spans both apps, touches every shipped screen, and needs routing/catalogue decisions. Third time this has been flagged; this pass did the half that could be done honestly in one screen rather than deferring silently again.
+
+**Contact details display but don't edit, deliberately.** The columns exist and `users_update_own` would allow the writes, but `email` and `phone` are also sign-in credentials and `public.users` holds them separately from `auth.users` — changing one without the other silently desynchronises an account from its login. That needs `supabase.auth.updateUser` plus re-verification, which is its own work; `location` alone would have been an edit control for one field of three. No photo upload either: `profile_photo_url` is a URL column and no Storage bucket is configured, so initials are the normal case rather than the fallback.
+
+**Roles are read-only. The switcher is still not built** — third pass, and the first to ship something in its place. Listing what someone *is* needs a query; switching which role a session *acts as* needs somewhere to persist that and screens whose content varies by it. Neither exists, and a dropdown that changed nothing would be worse than an honest list. It is the one named M3 gate item outstanding.
+
+**On the profile switcher's history:** the wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs. It was excluded from the Auth pass because it needs a real notion of which role a session is *acting as*; Profile now reads `user_roles` and lists them, so the lookup exists — what's still missing is the acting-as concept and screens whose content varies by role. See `Bauhaven-Architecture-Plan.md` §6, "Auth as built".
 
 ## A genuinely tricky bug worth knowing about
 
@@ -84,7 +94,8 @@ Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real
 
 ## Next steps
 
-1. The **profile switcher** for users holding more than one active role — deliberately excluded from the auth pass, see below
-2. **Admin-web triage/approvals surface**, in dependency order: Issue Reports resolution (buildable now), then the Requests-approval migration and screen, which also unblocks Admin-web's attendance auto-excuse
-3. Build out Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
-4. Generate real types once a Supabase project exists, same command as Admin-web
+1. **next-intl setup across both apps** — recommended as its own dedicated task, before more screens are built. Every screen shipped meanwhile is more strings to extract
+2. **Admin-web triage/approvals surface**, in dependency order: Issue Reports resolution (buildable now), Testimony curation (one-line UPDATE policy), then the Requests-approval migration and screen, which also unblocks Admin-web's attendance auto-excuse
+3. The **profile switcher** for users holding more than one active role — the one named M3 gate item still outstanding
+4. **"View performance summary"** (Academy feature #12, a Must) — unbuilt, and named in no milestone's gate list
+5. Generate real types once a Supabase project exists, same command as Admin-web
