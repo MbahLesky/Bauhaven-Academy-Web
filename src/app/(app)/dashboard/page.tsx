@@ -69,6 +69,23 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {/*
+        The wireframe's quick-action row has three entries — Request absence, Report an
+        issue, Share feedback. Only the first has a screen behind it; the other two are
+        separate features nobody has built yet. They're left out rather than rendered as
+        dead buttons, and slot in beside this one (as a grid) once they exist.
+      */}
+      <Link href="/requests" className="mb-5 block">
+        <Card className="transition-colors hover:border-accent">
+          <CardContent className="flex min-h-12 items-center justify-between py-3.5">
+            <span className="text-sm font-semibold">Request absence</span>
+            <span aria-hidden="true" className="text-neutral-300">
+              ›
+            </span>
+          </CardContent>
+        </Card>
+      </Link>
+
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">
           Due soon

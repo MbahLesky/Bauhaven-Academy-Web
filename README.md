@@ -4,9 +4,9 @@ Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks,
 
 ## Status
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 75/75) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 103/103) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
 
-**Not yet built:** Requests, Report Issue, Testimony, and Profile are nav links with no page behind them yet.
+**Not yet built:** Report Issue, Testimony, and Profile. `/profile` is in the bottom nav with no page behind it — a dead link that predates this work and outlives it.
 
 **Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
 
@@ -34,6 +34,16 @@ Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm r
 
 **The Home preview's attendance rate was wrong twice over.** It computed `present ÷ all rows`, which counted a Staff correction *and* the row it corrected as two sessions, and counted an excused absence against the student. `src/lib/append-only.ts` is ported from Admin-web to collapse corrections, excused sessions are excluded from the denominator (an approved absence is the system saying it doesn't count against you), and both screens now share one function. **This changes the number Home used to show.**
 
+**Requests is built — the submitting half only.** A student picks a first and last day away, gives a reason, and sees their own past requests with status badges, reachable from a Home entry point that didn't exist (the wireframe's three-up quick-action row was never built; only "Request absence" has a screen behind it, so it ships as one full-width row rather than two dead buttons).
+
+**The approval half is missing from the database, not just from the UI — and that's the thing to carry forward.** `requests` has SELECT and INSERT policies and *nothing else*: no UPDATE, so no row can leave `'pending'`, by anyone, including an Admin. `request_approvals` has SELECT and UPDATE but **no INSERT**, so no approver row can be created either. An Admin-web approval screen therefore needs a migration first, in the same family as `004_submission_grading_rls.sql` and `005_finance_approval_rls.sql`. That migration is deliberately not written here, because its `with check` has to encode the Core spec's quorum rule and two inputs to it don't exist: nothing says *which* Staff member approves a given student's request (`users` has no supervisor link), and nobody has decided whether approver rows are created at submission or lazily at first review. Guessing either would seed rows the approval screen then has to work around.
+
+**So the screen says approvals aren't handled in the app yet, in as many words.** Submitting is genuinely useful today — `requests_select` lets Staff and Admin read every request, so the information reaches them — but there is nowhere to record a decision. Implying otherwise would be the same class of promise as Attendance's since-removed "works offline". For the same reason there's no cancel control: with no UPDATE or DELETE policy a student cannot withdraw a request, and a button that always failed would be worse than its absence.
+
+**`status` is never sent on insert; `type` always is.** The column defaults to `'pending'` (checked in `001`, not assumed), and the quorum rule auto-approves when the company has exactly one Admin — whatever implements that would be fighting a client that hardcoded `'pending'`. `type` is the opposite case: no check constraint, and what the student is asking for is a fact this client knows.
+
+**This does not close Admin-web's Attendance TODO, and it's a two-sided gap.** Feature #18's auto-excuse from an approved absence Request is still marked `TODO(requests)` in Admin-web, because it needs an *approved* state that nothing can currently produce. Both halves are the same feature: no approval screen here, and no derived excuse there.
+
 **The profile switcher is deliberately not here.** The wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs — but it needs a real notion of which role a session is *acting as*, somewhere to persist that, and screens whose content actually varies by it. Built inside an auth pass it would have been a dropdown that changes nothing. It stays in M3's gate; see `Bauhaven-Architecture-Plan.md` §6, "Auth as built". Relatedly, Academy does **not** yet read `user_roles` the way Admin does — nothing here is role-gated yet, so a lookup with no consumer would be speculative. Both arrive together with the switcher.
 
 ## A genuinely tricky bug worth knowing about
@@ -47,5 +57,6 @@ Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real
 ## Next steps
 
 1. The **profile switcher** for users holding more than one active role — deliberately excluded from the auth pass, see below
-2. Build out Requests, Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
-3. Generate real types once a Supabase project exists, same command as Admin-web
+2. **Requests approval** — the RLS migration first (see above), then an Admin-web screen; that also unblocks Admin-web's attendance auto-excuse
+3. Build out Report Issue, Testimony, Profile against `bauhaven-academy-web-wireframes.html` and `Bauhaven-Academy-Feature-Spec.md`
+4. Generate real types once a Supabase project exists, same command as Admin-web

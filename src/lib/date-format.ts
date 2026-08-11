@@ -98,6 +98,30 @@ export function todayInBauhaven(now: Date = new Date()): string {
   return ISO_DATE_IN_BAUHAVEN.format(now);
 }
 
+// The same "3 Jun 2026" shape as DATE_FORMAT, but pinned to UTC — see formatDateOnly.
+const DATE_ONLY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Renders a `date` column (YYYY-MM-DD) as "3 Jun 2026", matching Admin-web's helper of
+ * the same name.
+ *
+ * Distinct from `formatDate` above, which takes a `timestamptz`. A date-only value has no
+ * time and no zone, so running it through Bauhaven's zone is how the 3rd renders as the
+ * 2nd; parsing as UTC midnight and formatting as UTC is lossless.
+ */
+export function formatDateOnly(value: string | null): string | null {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return DATE_ONLY_FORMAT.format(parsed);
+}
+
 /**
  * Renders a `session_date` column (YYYY-MM-DD) as "Mon, 3 Aug".
  *

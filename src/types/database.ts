@@ -103,6 +103,7 @@ type RequestsRow = {
   end_date: string;
   reason: string | null;
   status: "pending" | "approved" | "rejected";
+  created_at: string;
 };
 
 type TestimoniesRow = {
