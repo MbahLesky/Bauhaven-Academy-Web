@@ -41,13 +41,33 @@ function fakeDatabase({
         Promise.resolve({ data: { user: signedIn ? { id: STUDENT_ID } : null } }),
     },
     from: () => ({
-      select: () => ({
-        eq: (_column: string, value: string) =>
-          Promise.resolve({
-            data: lookupError ? null : records.filter((row) => row.session_id === value),
-            error: lookupError,
-          }),
-      }),
+      // `.eq()` chains, and each call narrows further — the real PostgREST builder ANDs
+      // them. Modelling only the first filter would let a query that forgets `user_id`
+      // still pass, which is the bug these tests now cover.
+      select: () => {
+        const filters: Record<string, string> = {};
+
+        const builder = {
+          eq(column: string, value: string) {
+            filters[column] = value;
+            return builder;
+          },
+          then(
+            resolve: (result: { data: StoredRecord[] | null; error: { code: string } | null }) => unknown
+          ) {
+            const matching = records.filter((row) =>
+              Object.entries(filters).every(
+                ([column, value]) => row[column as keyof StoredRecord] === value
+              )
+            );
+            return Promise.resolve(
+              lookupError ? { data: null, error: lookupError } : { data: matching, error: null }
+            ).then(resolve);
+          },
+        };
+
+        return builder;
+      },
       insert: (row: Omit<StoredRecord, "id">) => {
         if (insertError) return Promise.resolve({ error: insertError });
         records.push({ ...row, id: `rec-${records.length + 1}` });
@@ -126,6 +146,36 @@ describe("checkIn — a second attempt for the same session", () => {
     expect(result.message).toMatch(/already checked in/i);
     // Still exactly one row.
     expect(db.records).toHaveLength(1);
+  });
+
+  /**
+   * **Regression — the duplicate check must be scoped to the caller, not just the session.**
+   *
+   * `attendance_records_select` is `user_id = auth.uid() **or auth_is_admin_or_staff()**`.
+   * For a student the first arm makes an unfiltered read self-scoping, which is why this
+   * query originally carried only `.eq("session_id", …)`. But one login serves the whole
+   * platform and a person can hold several roles at once
+   * (`Bauhaven-Architecture-Plan.md` §6) — a Mentor who is also enrolled, a former intern
+   * now supervising. For them the read returns the **whole roster**, and a classmate's row
+   * would be reported back as "you're already checked in", blocking a legitimate check-in
+   * with no way to tell it was someone else's record.
+   *
+   * Without `.eq("user_id", …)` in the action, this test sees the classmate's row and
+   * fails on `outcome`.
+   */
+  it("ignores a classmate's record for the same session", async () => {
+    const CLASSMATE_ID = "1c8b7a55-2f3e-4d21-8a90-6b5c4d3e2f10";
+    const db = fakeDatabase({
+      existing: [record({ id: "rec-classmate", user_id: CLASSMATE_ID, status: "present" })],
+    });
+
+    const result = await checkIn({ session_id: SESSION_ID });
+
+    expect(result.outcome).toBe("checked-in");
+    // The classmate's row plus this student's new one — never a read of someone else's
+    // attendance standing in for their own.
+    expect(db.records).toHaveLength(2);
+    expect(db.records[1]).toMatchObject({ user_id: STUDENT_ID, status: "present" });
   });
 
   it("stays at one row across repeated taps", async () => {
