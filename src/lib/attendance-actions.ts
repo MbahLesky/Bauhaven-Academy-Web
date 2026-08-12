@@ -77,10 +77,17 @@ export async function checkIn(input: CheckInInput): Promise<CheckInResult> {
   // exists to prevent. The append-only convention means a legitimate change is a row
   // carrying `corrects_id`, and a student has no business writing one of those: adjusting
   // someone's attendance is a Staff decision.
+  //
+  // Scoped to this account as well as this session: `attendance_records_select` is
+  // `user_id = auth.uid() or auth_is_admin_or_staff()`, so for anyone holding a Staff or
+  // Admin role — an ordinary case on a platform with one login and multiple roles per
+  // person — an unfiltered read returns the whole roster, and a *classmate's* record
+  // would be reported back as "you're already checked in".
   const existingResult = await supabase
     .from("attendance_records")
     .select("id, session_id, status, corrects_id, created_at")
-    .eq("session_id", parsed.data.session_id);
+    .eq("session_id", parsed.data.session_id)
+    .eq("user_id", user.id);
 
   if (existingResult.error) {
     console.error(

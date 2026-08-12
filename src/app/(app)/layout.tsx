@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/app-shell/SignOutButton";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -11,13 +10,12 @@ const NAV_ITEMS = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="flex h-14 flex-shrink-0 items-center justify-between px-5">
+      <header className="flex h-14 flex-shrink-0 items-center px-5">
         {/* Wordmark only for now — real logo asset not yet provided, see Bauhaven-Brand-Guidelines.md */}
         <span className="font-display text-sm font-bold">Bauhaven Academy</span>
-        {/* Temporary home for sign-out until the Profile screen exists to hold it
-            properly — see SignOutButton. Everything under this layout is already
-            behind middleware's session gate, so this is always a real session. */}
-        <SignOutButton />
+        {/* Sign-out used to sit here as a stopgap through the Auth pass. It now lives on
+            the Profile screen, where the wireframe puts it and where the Profile tab in
+            the nav below reaches in one tap. */}
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pb-24">{children}</main>

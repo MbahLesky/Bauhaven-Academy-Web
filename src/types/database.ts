@@ -18,7 +18,27 @@ type UsersRow = {
   id: string;
   email: string | null;
   name: string;
+  phone: string | null;
+  location: string | null;
+  // A URL, not a file. No storage bucket is configured on this project, so nothing in
+  // either app can currently produce one — the Profile screen renders it if a value
+  // exists and offers no upload.
+  profile_photo_url: string | null;
+  // The student's own content language, which is what routes a testimony to content_en
+  // or content_fr. Distinct from interface language, which nothing reads yet — next-intl
+  // has never been set up in either app.
+  preferred_language: "en" | "fr";
   created_at: string;
+};
+
+type UserRolesRow = {
+  id: string;
+  user_id: string;
+  role: "admin" | "staff" | "intern" | "student" | "holiday_maker";
+  // Only meaningful for staff; a student's row leaves it null.
+  staff_sub_role: "auditor" | "coordinator" | "programme_manager" | "mentor" | null;
+  program_id: string | null;
+  status: "active" | "inactive";
 };
 
 type EnrollmentsRow = {
@@ -103,15 +123,20 @@ type RequestsRow = {
   end_date: string;
   reason: string | null;
   status: "pending" | "approved" | "rejected";
+  created_at: string;
 };
 
 type TestimoniesRow = {
   id: string;
   user_id: string;
   program_id: string | null;
-  content_en: string;
+  // Nullable since 007_testimonies_bilingual_content.sql — a testimony written in French
+  // is a complete testimony with content_en null. The table-level check guarantees at
+  // least one of the two is present.
+  content_en: string | null;
   content_fr: string | null;
   status: "submitted" | "published";
+  created_at: string;
 };
 
 type IssueReportsRow = {
@@ -119,7 +144,11 @@ type IssueReportsRow = {
   reporter_id: string;
   category: string;
   description: string;
-  status: "open" | "resolved";
+  // Three states, not two. The check constraint in 001_initial_schema.sql is
+  // ('open','in_progress','resolved'); this was typed as open|resolved, which would have
+  // made a triaged report an impossible value the moment anything set it.
+  status: "open" | "in_progress" | "resolved";
+  created_at: string;
 };
 
 // Insert/Update are loosely typed (Partial<Row>) here since the current pages only
@@ -136,6 +165,7 @@ export type Database = {
   public: {
     Tables: {
       users: TableShape<UsersRow>;
+      user_roles: TableShape<UserRolesRow>;
       enrollments: TableShape<EnrollmentsRow>;
       programs: TableShape<ProgramsRow>;
       tasks: TableShape<TasksRow>;

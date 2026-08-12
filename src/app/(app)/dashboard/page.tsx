@@ -13,6 +13,13 @@ export const dynamic = "force-dynamic";
 /** Enough to be useful on a phone without turning Home into the Tasks screen. */
 const PREVIEW_TASK_COUNT = 3;
 
+/** The wireframe's three quick actions, all now with screens behind them. */
+const QUICK_ACTIONS = [
+  { href: "/requests", label: "Request absence" },
+  { href: "/report", label: "Report an issue" },
+  { href: "/testimony", label: "Share feedback" },
+] as const;
+
 async function getDashboardData() {
   const supabase = await createClient();
 
@@ -68,6 +75,21 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* The wireframe's quick-action row, now complete — all three have screens. */}
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        {QUICK_ACTIONS.map((action) => (
+          <Link key={action.href} href={action.href}>
+            <Card className="h-full transition-colors hover:border-accent">
+              {/* Tight padding and a small type size because three labels have to fit on a
+                  360px screen, which is this app's responsive floor. */}
+              <CardContent className="flex min-h-16 items-center px-3 py-3 text-xs font-semibold leading-snug">
+                {action.label}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
 
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-xs font-bold uppercase tracking-wide text-neutral-400">
