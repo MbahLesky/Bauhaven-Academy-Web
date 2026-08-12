@@ -190,6 +190,24 @@ export type Database = {
         Args: { p_module: string; p_action: string };
         Returns: boolean;
       };
+      /**
+       * What the accept screen may show before anyone signs in. `invitations_select` is
+       * Admin/Staff only, so an anonymous invitee has no other way to see what they were
+       * sent. Returns nothing for an invalid, used or expired token. Added by 009.
+       */
+      invitation_preview: {
+        Args: { p_token: string };
+        Returns: { email: string; invited_role: string; program_id: string | null }[];
+      };
+      /**
+       * Grants the invited role (and enrols, when the invitation carries a program) to the
+       * signed-in account, after checking its email matches the invitation's. The role
+       * comes from the invitation, never the caller. Added by 009.
+       */
+      redeem_invitation: {
+        Args: { p_token: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
