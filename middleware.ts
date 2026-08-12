@@ -37,7 +37,14 @@ export async function middleware(request: NextRequest) {
 
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
 
-  if (!user && !isAuthRoute) {
+  // Invitation links have to work for somebody who has no account yet — that's the whole
+  // point of them — so /invite is reachable without a session. It's also reachable *with*
+  // one, unlike /login: an existing account can be invited to a second role, and someone
+  // who confirmed their email comes back to the same link to finish. The token itself is
+  // the credential, checked by `invitation_preview` and `redeem_invitation`.
+  const isInviteRoute = request.nextUrl.pathname.startsWith("/invite");
+
+  if (!user && !isAuthRoute && !isInviteRoute) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
