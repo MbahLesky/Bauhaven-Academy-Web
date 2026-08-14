@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -106,6 +108,15 @@ export default function LoginPage() {
           {isPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+
+      {/* The other way in. Self-signup is now the student path, so the login screen has to
+          offer it — somebody arriving with no account otherwise has nowhere to go. */}
+      <p className="mt-6 text-center text-sm text-neutral-500">
+        New to Bauhaven?{" "}
+        <Link href="/signup" className="font-semibold text-accent">
+          Apply for a programme
+        </Link>
+      </p>
 
       <p className="mt-6 text-center text-xs text-neutral-500">
         One Bauhaven account works here and across the rest of the platform. Ask an Admin

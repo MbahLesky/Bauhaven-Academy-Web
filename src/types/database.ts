@@ -115,6 +115,27 @@ type AttendanceRecordsRow = {
   checked_in_at: string | null;
 };
 
+/**
+ * Academy reads its own application to show where it stands, and writes one at sign-up —
+ * signing up *is* applying. `applicant_id` and `applications_select`'s own-row arm both
+ * come from 012_academy_signup_applications.sql.
+ */
+type ApplicationsRow = {
+  id: string;
+  applicant_name: string;
+  applicant_email: string;
+  applicant_phone: string | null;
+  // Nullable: an anonymous application from the public website has no account behind it,
+  // and a public application has no programme assigned until a reviewer confirms it.
+  applicant_id: string | null;
+  program_id: string | null;
+  program_slug: string | null;
+  message: string | null;
+  status: "submitted" | "confirmed" | "approved" | "declined";
+  reviewed_at: string | null;
+  created_at: string;
+};
+
 type RequestsRow = {
   id: string;
   requester_id: string;
@@ -173,6 +194,7 @@ export type Database = {
       feedback: TableShape<FeedbackRow>;
       attendance_sessions: TableShape<AttendanceSessionsRow>;
       attendance_records: TableShape<AttendanceRecordsRow>;
+      applications: TableShape<ApplicationsRow>;
       requests: TableShape<RequestsRow>;
       testimonies: TableShape<TestimoniesRow>;
       issue_reports: TableShape<IssueReportsRow>;

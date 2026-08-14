@@ -35,7 +35,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    // Signing up is applying — the person has no account yet, by definition.
+    request.nextUrl.pathname.startsWith("/signup");
 
   // Invitation links have to work for somebody who has no account yet — that's the whole
   // point of them — so /invite is reachable without a session. It's also reachable *with*
