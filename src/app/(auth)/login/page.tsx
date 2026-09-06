@@ -78,9 +78,15 @@ export default function LoginPage() {
         </div>
 
         <div className="mb-6">
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-            Password
-          </label>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <label htmlFor="password" className="block text-sm font-medium">
+              Password
+            </label>
+            {/* Next to the field somebody is failing at, not buried under the button. */}
+            <Link href="/forgot-password" className="text-xs font-semibold text-accent">
+              Forgotten?
+            </Link>
+          </div>
           <Input
             id="password"
             type="password"

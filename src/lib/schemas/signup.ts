@@ -8,7 +8,7 @@ import { z } from "zod";
  * Supabase Auth's own floor is 6. Eight, because the one thing a password on a shared,
  * low-end Android device has to survive is a guess from somebody standing nearby.
  */
-const MIN_PASSWORD_LENGTH = 8;
+export const MIN_PASSWORD_LENGTH = 8;
 
 /**
  * Signing up for a programme.
