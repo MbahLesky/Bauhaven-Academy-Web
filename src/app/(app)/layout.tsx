@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { getMyApplication } from "@/lib/application-status";
+import { PendingApprovalNotice } from "@/components/app-shell/PendingApprovalNotice";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -7,7 +10,44 @@ const NAV_ITEMS = [
   { href: "/profile", label: "Profile" },
 ] as const;
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  /**
+   * **The gate Academy has never had.**
+   *
+   * Middleware guarantees a session and that was the whole check, so any signed-in account
+   * got the entire app. That was harmless while accounts existed only by invitation — an
+   * invited student is enrolled by definition. Self-signup breaks that: somebody applying
+   * has a valid session and no enrolment, and would have landed on Tasks, Attendance and
+   * Requests, all empty. Empty screens read as "broken", not as "not approved yet".
+   *
+   * Enrolment is the test rather than the role, because enrolment is what every screen
+   * below actually needs — tasks, attendance and requests are all scoped to a programme.
+   * Somebody with a role but no active enrolment (a finished student, an applicant
+   * approved but not yet placed) is in the same position as an applicant: nothing here
+   * works for them, and saying so beats showing empty lists.
+   */
+  const supabase = await createClient();
+
+  const { data: enrollment, error } = await supabase
+    .from("enrollments")
+    .select("id")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    // Fails closed, and says so through the same screen — an unverifiable enrolment is not
+    // an enrolment, and rendering the app on a failed check would show empty screens with
+    // no explanation, which is the exact confusion this gate exists to prevent.
+    console.error("Enrollment gate lookup failed:", error.code, error.message);
+    return <PendingApprovalNotice application={null} />;
+  }
+
+  if (!enrollment) {
+    // Only queried when the gate is closed — the common path costs nothing.
+    return <PendingApprovalNotice application={await getMyApplication()} />;
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
       <header className="flex h-14 flex-shrink-0 items-center px-5">

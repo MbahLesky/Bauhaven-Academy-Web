@@ -35,7 +35,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    // Signing up is applying — the person has no account yet, by definition.
+    request.nextUrl.pathname.startsWith("/signup");
 
   // Invitation links have to work for somebody who has no account yet — that's the whole
   // point of them — so /invite is reachable without a session. It's also reachable *with*
@@ -44,12 +47,29 @@ export async function middleware(request: NextRequest) {
   // the credential, checked by `invitation_preview` and `redeem_invitation`.
   const isInviteRoute = request.nextUrl.pathname.startsWith("/invite");
 
-  if (!user && !isAuthRoute && !isInviteRoute) {
+  /*
+   * The password-reset chain, all of which has to work for somebody who cannot sign in —
+   * which is the entire reason they're here.
+   *
+   * `/auth/confirm` is where Supabase's emailed link lands, and it runs *before* a session
+   * exists: it's the thing that creates one. `/reset-password` is reached with a recovery
+   * session, so it would pass the check below anyway; it's named here so the rule reads as
+   * one flow rather than two coincidences.
+   */
+  const isPasswordResetRoute =
+    request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/reset-password") ||
+    request.nextUrl.pathname.startsWith("/auth/confirm");
+
+  if (!user && !isAuthRoute && !isInviteRoute && !isPasswordResetRoute) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && isAuthRoute) {
+  // `isPasswordResetRoute` is excluded: a recovery session *is* a session, and bouncing it
+  // to the dashboard would end the reset at the last step — leaving the old password in
+  // place and the person inside the app wondering whether it worked.
+  if (user && isAuthRoute && !isPasswordResetRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

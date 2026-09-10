@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -76,9 +78,15 @@ export default function LoginPage() {
         </div>
 
         <div className="mb-6">
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-            Password
-          </label>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <label htmlFor="password" className="block text-sm font-medium">
+              Password
+            </label>
+            {/* Next to the field somebody is failing at, not buried under the button. */}
+            <Link href="/forgot-password" className="text-xs font-semibold text-accent">
+              Forgotten?
+            </Link>
+          </div>
           <Input
             id="password"
             type="password"
@@ -106,6 +114,15 @@ export default function LoginPage() {
           {isPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+
+      {/* The other way in. Self-signup is now the student path, so the login screen has to
+          offer it — somebody arriving with no account otherwise has nowhere to go. */}
+      <p className="mt-6 text-center text-sm text-neutral-500">
+        New to Bauhaven?{" "}
+        <Link href="/signup" className="font-semibold text-accent">
+          Apply for a programme
+        </Link>
+      </p>
 
       <p className="mt-6 text-center text-xs text-neutral-500">
         One Bauhaven account works here and across the rest of the platform. Ask an Admin
