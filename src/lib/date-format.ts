@@ -78,15 +78,6 @@ const ISO_DATE_IN_BAUHAVEN = new Intl.DateTimeFormat("en-CA", {
   timeZone: BAUHAVEN_TIME_ZONE,
 });
 
-// The wireframe's history rows: "Mon, 3 Aug". Rendered in UTC deliberately — see
-// formatSessionDate.
-const SESSION_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-});
-
 /**
  * Today's date in Bauhaven's timezone, as YYYY-MM-DD.
  *
@@ -122,18 +113,26 @@ export function formatDateOnly(value: string | null): string | null {
   return DATE_ONLY_FORMAT.format(parsed);
 }
 
+const SESSION_START_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  timeZone: BAUHAVEN_TIME_ZONE,
+});
+
 /**
- * Renders a `session_date` column (YYYY-MM-DD) as "Mon, 3 Aug".
- *
- * Formatted in UTC rather than Bauhaven's zone on purpose: a date-only value carries no
- * time and no zone, so running it through a timezone conversion is exactly how a session
- * on the 3rd renders as the 2nd. Parsing as UTC midnight and formatting as UTC makes the
- * round trip lossless — the same reasoning Admin-web's `formatDateOnly` documents.
+ * Renders a session's `starts_at` as "Mon, 3 Aug, 9:00am" in Bauhaven's timezone — the day
+ * and time the class met there, wherever the learner is reading from.
  */
-export function formatSessionDate(value: string | null): string | null {
-  if (!value) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = new Date(`${value}T00:00:00Z`);
+export function formatSessionStart(isoTimestamp: string | null): string | null {
+  if (!isoTimestamp) return null;
+  const parsed = new Date(isoTimestamp);
   if (Number.isNaN(parsed.getTime())) return null;
-  return SESSION_DATE_FORMAT.format(parsed);
+  const time = DEADLINE_TIME_FORMAT.format(parsed).replace(/\s/g, "").toLowerCase();
+  return `${SESSION_START_FORMAT.format(parsed)}, ${time}`;
+}
+
+/** The Bauhaven calendar day an instant falls on, as YYYY-MM-DD. */
+export function bauhavenDateKey(isoTimestamp: string): string {
+  return ISO_DATE_IN_BAUHAVEN.format(new Date(isoTimestamp));
 }

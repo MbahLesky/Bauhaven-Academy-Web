@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canCreateOwnTasks } from "@/lib/task-permissions";
-import { bauhavenLocalToInstant } from "@/lib/date-format";
+import { getLearnerContext } from "@/lib/enrolment";
+import { isOpen } from "@/lib/task-format";
 import {
-  selfTaskSchema,
+  assignmentIdSchema,
+  idempotencyKeySchema,
+  missingPart,
   submissionSchema,
-  taskIdSchema,
-  type SelfTaskInput,
   type SubmissionInput,
 } from "@/lib/schemas/task";
 
@@ -16,162 +16,121 @@ export type TaskMutationResult = { error: string | null };
 
 // "What happened + what they can do" — the technical detail goes to the log.
 const SIGNED_OUT_MESSAGE = "Your session has expired. Sign in again to continue.";
-const VALIDATION_MESSAGE = "Check the form and try again.";
-const NOT_YOURS_MESSAGE =
-  "You can't submit for this task — it may not be assigned to you, or it may have been removed.";
-const ALREADY_SUBMITTED_MESSAGE =
-  "This task isn't open for submissions any more. Refresh to see where it stands.";
-const NO_CREATE_PERMISSION_MESSAGE =
-  "You don't have permission to create your own tasks. An Admin or Staff member grants that per person.";
-const GENERIC_MESSAGE = "Couldn't save that. Try again in a moment.";
+const VALIDATION_MESSAGE = "Check what you're handing in and try again.";
+const NOT_YOURS_MESSAGE = "You can't hand in work for this task — it may not be assigned to you any more.";
+const CLOSED_MESSAGE = "This task isn't taking submissions now. Refresh to see where it stands.";
+const NO_RESUBMIT_MESSAGE = "You've already handed this in, and it can't be handed in again.";
+const RACE_MESSAGE = "That was handed in from somewhere else at the same moment. Refresh to see it.";
+const GENERIC_MESSAGE = "Couldn't hand that in. Try again in a moment.";
 
-const RLS_VIOLATION_CODE = "42501";
-
-async function requireSession(): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: SIGNED_OUT_MESSAGE };
-  return { userId: user.id };
-}
+const UNIQUE_VIOLATION_CODE = "23505";
 
 /**
- * Submits work against a task.
+ * Hands in work against one of the learner's task assignments.
  *
- * **The submission is the only write this needs.** `006_submission_marks_task_submitted.sql`
- * adds an `after insert` trigger that moves the parent task from 'open' to 'submitted',
- * which is what puts it in Admin-web's queue and what makes grading possible at all
- * (Admin's `gradeSubmission` guards on `.eq('status','submitted')`).
+ * A submission is a new **version** (`version_number`, unique per assignment); the
+ * database stamps when it arrived and whether it was late, and moves the assignment to
+ * "submitted", which puts it in the mentor's queue. If the learner saved a draft from the
+ * mobile app, that draft is what gets handed in rather than a second version.
  *
- * That transition deliberately does **not** happen here, even though this is the code
- * that knows a submission just occurred. A student assigned a task has
- * `assigned_to = auth.uid()` but `created_by = <staff>`, and `tasks_update` requires
- * `created_by = auth.uid()` — so this app *cannot* write the status even if it wanted to,
- * and widening that policy would make every task field student-writable. The invariant
- * belongs to the schema, so it lives there; see the migration for the full reasoning.
- *
- * The status is read back afterwards purely to *report* honestly — if the trigger isn't
- * applied to the database this app is pointed at, the student is told the submission
- * saved but hasn't reached anyone, rather than being left to assume it did.
+ * `idempotencyKey` is made once per form, so a retry after a lost response returns the
+ * version already accepted instead of writing another — the same rule the mobile app uses.
  */
-export async function submitTask(
-  taskId: string,
-  input: SubmissionInput
+export async function submitWork(
+  assignmentId: string,
+  input: SubmissionInput,
+  idempotencyKey: string
 ): Promise<TaskMutationResult> {
-  const session = await requireSession();
-  if ("error" in session) return session;
-
-  const parsedId = taskIdSchema.safeParse(taskId);
-  if (!parsedId.success) return { error: GENERIC_MESSAGE };
-
+  const parsedId = assignmentIdSchema.safeParse(assignmentId);
+  const parsedKey = idempotencyKeySchema.safeParse(idempotencyKey);
   const parsed = submissionSchema.safeParse(input);
-  if (!parsed.success) {
-    console.error("Submission rejected by validation:", parsed.error.issues);
+  if (!parsedId.success || !parsedKey.success || !parsed.success) {
+    console.error("Submission rejected by validation:", parsed.error?.issues);
     return { error: VALIDATION_MESSAGE };
   }
 
+  const learner = await getLearnerContext();
+  if (!learner) return { error: SIGNED_OUT_MESSAGE };
+
   const supabase = await createClient();
 
-  // Read the task first so an already-submitted or already-graded one is refused with a
-  // useful message rather than silently appending a second submission nobody asked for.
-  // RLS means a task that isn't this student's simply isn't here.
-  const taskResult = await supabase
-    .from("tasks")
+  // A retry of something already accepted: done, nothing more to write.
+  const retried = await supabase
+    .from("submissions")
     .select("id, status")
+    .eq("idempotency_key", parsedKey.data)
+    .eq("participant_id", learner.userId)
+    .maybeSingle();
+  if (retried.data && retried.data.status !== "draft") return { error: null };
+
+  const assignment = await supabase
+    .from("task_assignments")
+    .select("id, task_id, enrolment_id, status")
     .eq("id", parsedId.data)
     .maybeSingle();
 
-  if (taskResult.error) {
-    console.error("Task lookup failed:", taskResult.error.code, taskResult.error.message);
+  if (assignment.error) {
+    console.error("Assignment lookup failed:", assignment.error.code, assignment.error.message);
     return { error: GENERIC_MESSAGE };
   }
-  if (!taskResult.data) return { error: NOT_YOURS_MESSAGE };
-  if (taskResult.data.status !== "open") return { error: ALREADY_SUBMITTED_MESSAGE };
+  // The database would show a reviewer this row too; only the learner's own counts here.
+  if (!assignment.data || !learner.enrolments.some((enrolment) => enrolment.id === assignment.data?.enrolment_id)) {
+    return { error: NOT_YOURS_MESSAGE };
+  }
 
-  // `user_id` comes from the session, never the client — `submissions_insert` is
-  // `user_id = auth.uid()`, so anything else would be rejected anyway, but sending it
-  // at all would invite the question.
-  const { error } = await supabase.from("submissions").insert({
-    task_id: parsedId.data,
-    user_id: session.userId,
-    content_url: parsed.data.content_url,
-  });
+  const [task, latest] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("status, submission_type, allow_resubmission, max_resubmissions")
+      .eq("id", assignment.data.task_id)
+      .maybeSingle(),
+    supabase
+      .from("submissions")
+      .select("id, version_number, status")
+      .eq("task_assignment_id", assignment.data.id)
+      .order("version_number", { ascending: false }),
+  ]);
+
+  if (task.error || latest.error) {
+    console.error("Submission pre-checks failed:", task.error?.message, latest.error?.message);
+    return { error: GENERIC_MESSAGE };
+  }
+  if (!task.data) return { error: NOT_YOURS_MESSAGE };
+  if (task.data.status !== "published" || !isOpen(assignment.data.status)) return { error: CLOSED_MESSAGE };
+
+  const missing = missingPart(task.data.submission_type, parsed.data);
+  if (missing) return { error: missing };
+
+  const versions = latest.data ?? [];
+  const handedIn = versions.filter((version) => version.status !== "draft").length;
+  if (
+    handedIn > 0 &&
+    (!task.data.allow_resubmission || (task.data.max_resubmissions !== null && handedIn > task.data.max_resubmissions))
+  ) {
+    return { error: NO_RESUBMIT_MESSAGE };
+  }
+
+  const draft = versions[0]?.status === "draft" ? versions[0] : null;
+  const content = { text_content: parsed.data.text_content, link_url: parsed.data.link_url };
+
+  const { error } = draft
+    ? await supabase
+        .from("submissions")
+        .update({ ...content, status: "submitted" })
+        .eq("id", draft.id)
+    : await supabase.from("submissions").insert({
+        ...content,
+        task_assignment_id: assignment.data.id,
+        // From the session, never the client.
+        participant_id: learner.userId,
+        version_number: (versions[0]?.version_number ?? 0) + 1,
+        status: "submitted",
+        idempotency_key: parsedKey.data,
+      });
 
   if (error) {
-    console.error("Submission insert failed:", error.code, error.message);
-    return { error: error.code === RLS_VIOLATION_CODE ? NOT_YOURS_MESSAGE : GENERIC_MESSAGE };
-  }
-
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
-
-  // The work is saved either way — this only decides what the student is told.
-  const settled = await supabase
-    .from("tasks")
-    .select("status")
-    .eq("id", parsedId.data)
-    .maybeSingle();
-
-  if (!settled.error && settled.data?.status === "open") {
-    console.error(
-      "Submission saved but its task is still 'open' —",
-      "006_submission_marks_task_submitted.sql is probably not applied to this database.",
-      { taskId: parsedId.data }
-    );
-    return {
-      error:
-        "Your work was saved, but it hasn't been sent for grading yet. Let an admin know before the deadline.",
-    };
-  }
-
-  return { error: null };
-}
-
-/**
- * Creates a task for yourself.
- *
- * Gated on the individual `tasks:create` override, checked here as well as in the UI:
- * a Server Action is reachable by direct POST, so hiding the button gates nothing on its
- * own. RLS refuses it a third time.
- */
-export async function createSelfTask(input: SelfTaskInput): Promise<TaskMutationResult> {
-  const session = await requireSession();
-  if ("error" in session) return session;
-
-  if (!(await canCreateOwnTasks())) return { error: NO_CREATE_PERMISSION_MESSAGE };
-
-  const parsed = selfTaskSchema.safeParse(input);
-  if (!parsed.success) {
-    console.error("Self-created task rejected by validation:", parsed.error.issues);
-    return { error: VALIDATION_MESSAGE };
-  }
-
-  const supabase = await createClient();
-
-  const { error } = await supabase.from("tasks").insert({
-    title: parsed.data.title,
-    description: parsed.data.description,
-    // Both from the session: a self-created task is, by definition, assigned to whoever
-    // made it. Taking either from the client would let someone assign work to a stranger.
-    created_by: session.userId,
-    assigned_to: session.userId,
-    deadline: bauhavenLocalToInstant(parsed.data.deadline),
-    // Never taken from the caller — everything starts open, so nothing can be created
-    // pre-submitted or pre-graded.
-    status: "open",
-    // `project_id` isn't sent at all. The column is nullable with no default, so omitting
-    // it stores NULL — the same row Admin-web writes, which also leaves it null because a
-    // Project is a separate approvable entity nothing in either app creates yet. Not
-    // naming it here keeps Academy's hand-written type subset honest about what it reads.
-  });
-
-  if (error) {
-    console.error("Self-created task insert failed:", error.code, error.message);
-    return {
-      error: error.code === RLS_VIOLATION_CODE ? NO_CREATE_PERMISSION_MESSAGE : GENERIC_MESSAGE,
-    };
+    console.error("Submission write failed:", error.code, error.message);
+    return { error: error.code === UNIQUE_VIOLATION_CODE ? RACE_MESSAGE : GENERIC_MESSAGE };
   }
 
   revalidatePath("/tasks");

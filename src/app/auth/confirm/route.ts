@@ -3,12 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/safe-redirect";
 
 /**
- * Where Supabase's emailed links land.
+ * Where Supabase's emailed links land: password resets (`type=recovery`) and invitations
+ * (`type=invite`, the email an accepted applicant receives).
  *
- * The mail contains a link to Supabase's own `/auth/v1/verify`, which checks the token and
- * then redirects here with `token_hash` and `type`. Exchanging that for a session has to
- * happen server-side so the session cookie is set through `@supabase/ssr` — the same path
- * every other request in this app reads its session from.
+ * The email template links here with `token_hash` and `type`. Exchanging that for a session
+ * has to happen server-side so the session cookie is set through `@supabase/ssr` — the same
+ * path every other request in this app reads its session from.
  *
  * **A one-time token in a URL, so it is spent here and nowhere else.** `verifyOtp` consumes
  * it and the browser is redirected without it, which keeps it out of the address bar,
@@ -18,24 +18,27 @@ import { safeNextPath } from "@/lib/safe-redirect";
  * on a link that people click from their inbox, and an unchecked one is an open redirect
  * with a freshly minted session attached.
  */
+const LINK_TYPES = { recovery: "/reset-password", invite: "/set-password" } as const;
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
 
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = safeNextPath(searchParams.get("next"), "/reset-password");
 
-  if (!tokenHash || type !== "recovery") {
+  if (!tokenHash || (type !== "recovery" && type !== "invite")) {
     return NextResponse.redirect(new URL("/forgot-password?error=link", origin));
   }
 
+  const next = safeNextPath(searchParams.get("next"), LINK_TYPES[type]);
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
+  const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
   if (error) {
     // Expired, already used, or tampered with. All three are the same thing to the person
-    // holding it: ask for another one.
-    console.error("Recovery link verification failed:", error.code, error.message);
+    // holding it: ask for another one. That works for an invitation too — a reset link sets
+    // the first password of an invited account just as well.
+    console.error(`${type} link verification failed:`, error.code, error.message);
     return NextResponse.redirect(new URL("/forgot-password?error=link", origin));
   }
 

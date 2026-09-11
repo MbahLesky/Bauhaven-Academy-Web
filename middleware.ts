@@ -37,36 +37,27 @@ export async function middleware(request: NextRequest) {
 
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
 
-  // Invitation links have to work for somebody who has no account yet — that's the whole
-  // point of them — so /invite is reachable without a session. It's also reachable *with*
-  // one, unlike /login: an existing account can be invited to a second role, and someone
-  // who confirmed their email comes back to the same link to finish. The token itself is
-  // the credential, checked by `invitation_preview` and `redeem_invitation`.
-  const isInviteRoute = request.nextUrl.pathname.startsWith("/invite");
-
   /*
-   * The password-reset chain, all of which has to work for somebody who cannot sign in —
-   * which is the entire reason they're here.
+   * The emailed-link chain — password resets and invitations — all of which has to work for
+   * somebody who can't sign in yet, which is the entire reason they're here.
    *
    * `/auth/confirm` is where Supabase's emailed link lands, and it runs *before* a session
-   * exists: it's the thing that creates one. `/reset-password` is reached with a recovery
-   * session, so it would pass the check below anyway; it's named here so the rule reads as
-   * one flow rather than two coincidences.
+   * exists: it's the thing that creates one. `/reset-password` and `/set-password` are
+   * reached with that session, so they'd pass the check below anyway; they're named here so
+   * the rule reads as one flow rather than coincidences.
    */
-  const isPasswordResetRoute =
+  const isEmailLinkRoute =
     request.nextUrl.pathname.startsWith("/forgot-password") ||
     request.nextUrl.pathname.startsWith("/reset-password") ||
+    request.nextUrl.pathname.startsWith("/set-password") ||
     request.nextUrl.pathname.startsWith("/auth/confirm");
 
-  if (!user && !isAuthRoute && !isInviteRoute && !isPasswordResetRoute) {
+  if (!user && !isAuthRoute && !isEmailLinkRoute) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  // `isPasswordResetRoute` is excluded: a recovery session *is* a session, and bouncing it
-  // to the dashboard would end the reset at the last step — leaving the old password in
-  // place and the person inside the app wondering whether it worked.
-  if (user && isAuthRoute && !isPasswordResetRoute) {
+  if (user && isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

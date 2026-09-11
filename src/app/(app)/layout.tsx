@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getLearnerContext } from "@/lib/enrolment";
+import { NotEnrolledNotice } from "@/components/app-shell/NotEnrolledNotice";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -7,15 +10,25 @@ const NAV_ITEMS = [
   { href: "/profile", label: "Profile" },
 ] as const;
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+/**
+ * The app shell, and its gate: Academy is for people enrolled on a programme.
+ *
+ * Signing in proves who someone is; an enrolment is what gives them anything here. Without
+ * one, every screen would be empty in a way that looks broken, so the whole app is replaced
+ * by a notice that says where they stand.
+ */
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const learner = await getLearnerContext();
+
+  // Middleware already sends a signed-out request to /login; this covers the gap.
+  if (!learner) redirect("/login");
+
+  if (learner.enrolments.length === 0) return <NotEnrolledNotice />;
+
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="flex h-14 flex-shrink-0 items-center px-5">
-        {/* Wordmark only for now — real logo asset not yet provided, see Bauhaven-Brand-Guidelines.md */}
+      <header className="flex h-14 shrink-0 items-center px-5">
         <span className="font-display text-sm font-bold">Bauhaven Academy</span>
-        {/* Sign-out used to sit here as a stopgap through the Auth pass. It now lives on
-            the Profile screen, where the wireframe puts it and where the Profile tab in
-            the nav below reaches in one tap. */}
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pb-24">{children}</main>

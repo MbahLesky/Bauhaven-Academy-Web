@@ -16,42 +16,37 @@ export interface MyIssueReport {
 }
 
 /**
- * The student's own reported issues, newest first.
+ * The learner's own reported issues, newest first.
  *
- * No `.eq("reporter_id", ...)`: `issue_reports_select` is
- * `reporter_id = auth.uid() or auth_is_admin_or_staff()`, so RLS already scopes this for a
- * student. Duplicating the filter would be a second, drift-prone copy of the policy — the
- * standing convention here, same as the task, attendance and request queries.
- *
- * Worth knowing: that policy has no category arm. A Staff member reads **every** report
- * regardless of category, which is why this function is named for the caller rather than
- * for the rows. See the spec section on what "routed by category" actually means.
+ * Filtered to the reporter explicitly: staff who handle reports can see everyone's, and this
+ * screen is only ever the learner's own. Throws on a failed read, so a failure never reads as
+ * "you've reported nothing".
  */
-export async function getMyIssueReports(): Promise<{
-  reports: MyIssueReport[];
-  error: unknown;
-}> {
+export async function getMyIssueReports(): Promise<MyIssueReport[]> {
   const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
 
   const { data, error } = await supabase
     .from("issue_reports")
     .select("id, status, category, description, created_at")
+    .eq("reporter_id", user.id)
     .order("created_at", { ascending: false })
     .limit(HISTORY_LIMIT);
 
   if (error) {
     console.error("Issue reports query failed:", error.code, error.message);
-    return { reports: [], error };
+    throw new Error("Couldn't load your reports.");
   }
 
-  return {
-    reports: data.map((row) => ({
-      id: row.id,
-      status: row.status,
-      category: row.category,
-      description: row.description,
-      reportedOn: formatDate(row.created_at),
-    })),
-    error: null,
-  };
+  return data.map((row) => ({
+    id: row.id,
+    status: row.status,
+    category: row.category,
+    description: row.description,
+    reportedOn: formatDate(row.created_at),
+  }));
 }

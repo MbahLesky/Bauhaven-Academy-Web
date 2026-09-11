@@ -1,50 +1,56 @@
-import type { TaskStatus } from "@/lib/schemas/task";
+import type { AssignmentStatus } from "@/types/database";
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  open: "Open",
-  // "Grading" rather than "Submitted" on this screen: from the student's side the
-  // interesting fact is that someone else now has it, not that they handed it over.
-  // Admin-web calls the same state "Submitted", which is equally true from its side.
-  submitted: "Grading",
-  graded: "Graded",
-  archived: "Archived",
+/** Statuses where the next move is the learner's: something to hand in. */
+export const OPEN_ASSIGNMENT_STATUSES: readonly AssignmentStatus[] = [
+  "assigned",
+  "in_progress",
+  "changes_requested",
+  "overdue",
+];
+
+export function isOpen(status: AssignmentStatus): boolean {
+  return OPEN_ASSIGNMENT_STATUSES.includes(status);
+}
+
+// From the learner's side: "With your mentor" rather than "Submitted", because the
+// interesting fact is that someone else has it now. Admin-web calls it Submitted.
+const STATUS_LABELS: Record<AssignmentStatus, string> = {
+  assigned: "To do",
+  in_progress: "In progress",
+  submitted: "With your mentor",
+  changes_requested: "Changes requested",
+  completed: "Completed",
+  overdue: "Overdue",
+  cancelled: "Cancelled",
 };
 
-export function formatTaskStatus(status: TaskStatus): string {
+export function formatAssignmentStatus(status: AssignmentStatus): string {
   return STATUS_LABELS[status];
 }
 
 /**
- * Badge colours, **aligned with Admin-web** rather than with Academy's own wireframe.
- *
- * The wireframe had Open as `warning` and Grading as `neutral` — the inverse of Admin's,
- * so the same task would have shown a different colour depending on which app you opened.
- * Admin's reading is the semantically correct one and matches the brand guidelines'
- * colour table: Open is nothing wrong, just work to do (neutral); Grading is waiting on
- * someone (warning); Graded is done (success). Wireframe corrected to match.
+ * Badge colours, aligned with Admin-web: to-do work is neutral (nothing is wrong), waiting on
+ * someone or needing another go is a warning, done is success, overdue is danger.
  */
-export const STATUS_VARIANTS: Record<TaskStatus, "neutral" | "warning" | "success"> = {
-  open: "neutral",
+export const STATUS_VARIANTS: Record<AssignmentStatus, "neutral" | "warning" | "success" | "danger"> = {
+  assigned: "neutral",
+  in_progress: "neutral",
   submitted: "warning",
-  graded: "success",
-  archived: "neutral",
+  changes_requested: "warning",
+  completed: "success",
+  overdue: "danger",
+  cancelled: "neutral",
 };
 
-/**
- * What the badge says.
- *
- * A graded task shows the grade itself — the wireframe's "92%" badge — because a grade
- * nobody can see without opening the row is a grade they'll open every row to find.
- * Falls back to the plain label when a graded task has no grade recorded, which is
- * possible: Admin-web's grading writes the grade, the feedback and the status as three
- * separate statements with no transaction across them.
- */
-export function formatTaskBadge(status: TaskStatus, grade: string | null): string {
-  if (status === "graded" && grade) return grade;
-  return formatTaskStatus(status);
-}
+const RESULT_LABELS: Record<string, string> = {
+  accepted: "Accepted",
+  approved: "Accepted",
+  completed: "Accepted",
+  changes_requested: "Changes requested",
+};
 
-/** The two groups the wireframe splits the list into. */
-export function isOpenSection(status: TaskStatus): boolean {
-  return status === "open";
+/** A released feedback's outcome, in the learner's words. */
+export function formatFeedbackResult(result: string | null): string | null {
+  if (!result) return null;
+  return RESULT_LABELS[result] ?? null;
 }

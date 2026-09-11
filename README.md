@@ -1,107 +1,48 @@
 # Bauhaven Academy (Web)
 
-Next.js App Router app for Interns/Students/Holiday-makers — dashboard, tasks, attendance, requests, testimonies, profile.
+The learner app for Bauhaven's interns, students and holiday-makers, in Next.js (App Router). It shares one database
+and one sign-in with the rest of Bauhaven: the website, Bauhaven Admin (web and mobile) and the Bauhaven Academy mobile
+app. The database's schema and documentation live in the Bauhaven-Platform repository.
 
-## Status
+Phone-first: a bottom nav and a phone-width column, because learners use it on their phones.
 
-Scaffolded and **verified working**: `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `npm test` (Vitest, 167/167) all clean. Mobile-first shell (bottom nav, max-width phone-like column) matching the wireframe, since Academy's real users are on their phones, not a desk browser. Dashboard page queries Supabase for real: active enrollment, up to 3 open tasks sorted by deadline, and an attendance rate computed from real attendance_records rows.
+## Screens
 
-**Every screen in the wireframe is now built** — Home, Tasks, Attendance, Requests, Report a problem, Share feedback, Profile. The bottom nav has no dead links left.
+| Screen | What it does |
+|---|---|
+| Home | Your programme, what's due soon, your attendance rate |
+| Tasks | Work your mentors set: read the instructions, hand in an answer or a link, see released feedback, hand in again when changes are requested |
+| Attendance | Today's sessions, your rate and your history. Taken by your mentor or coordinator |
+| Share feedback | Tell Bauhaven how it's going, with an optional rating. It's featured on the website only if you tick the box |
+| Profile | Your details and your programmes; sign out |
+| Request absence, Report a problem | Built, and switched off until their database tables exist (`src/lib/database-readiness.ts`). They say so plainly instead of failing |
 
-**Auth is implemented, not stubbed:** middleware-based session refresh and route gating, a `/login` page in its own `(auth)` route group with client-side validation (react-hook-form + zod) backed by server-side validation in the Server Action, a deliberately generic "Invalid email or password" on failure, and sign-out wired into the app shell. `/` now checks for a session instead of redirecting everyone to `/dashboard` unconditionally.
+**Who gets in.** Signing in proves who someone is; an enrolment is what gives them anything here. Someone signed in with
+no open enrolment (starting soon, in progress, or paused) sees a notice explaining where they stand, not an empty app.
 
-**It's a port of Admin-web's, not a re-derivation.** Same product, same Supabase Auth instance, one login that works across both — so the same middleware, the same Server Action, and the same account-enumeration reasoning. Three things genuinely differ, and only because Academy differs:
+**How accounts start.** People apply on the website. When staff accept an application, Bauhaven emails an invitation;
+its link lands on `/auth/confirm` and then `/set-password`, and they're in. Forgotten passwords go through
+`/forgot-password` → the emailed link → `/reset-password`.
 
-- The login screen is phone-first. Admin's full-width layout is its small-screen fallback; here it's the design, in the same `max-w-md` column the app shell uses. The email field sets `autocapitalize="none"` / `autocorrect="off"` / `inputmode="email"`, because a phone keyboard capitalising the first letter silently breaks an address before validation ever sees it. There's a test for that.
-- The Zod schema uses `z.email()` rather than Admin's `z.string().email()` — the chained form is deprecated in Zod 4, and this repo's `AGENTS.md` says to heed deprecations. Same validation, same message.
-- **Sign-out lived in the header temporarily; it now lives on Profile,** where the wireframe puts it. One sign-out in the app rather than two that could drift. It's also rendered on Profile's error boundary, deliberately — that page is the only way out of a session, so someone signed into the wrong account behind a failing profile read would otherwise be stuck.
+## Checks
 
-**Tasks is built end-to-end:** Open and Submitted-and-graded sections, submitting a link against an open task, self-created tasks for students who hold the individual `tasks:create` override, and the grade plus every feedback comment once a mentor has looked.
-
-**Submitting moves the task to `submitted` via a database trigger, not via this app — and that trigger didn't exist.** Admin-web's Submitted queue filters on `tasks.status`, and its grading guards on `.eq('status','submitted')`, but Admin never *writes* that state; Academy inserts the `submissions` row; and `tasks_update` is `created_by = auth.uid()`, so a student **assigned** a task cannot update it. Nothing advanced the status, so a submission would have sat at `open` forever — invisible to staff and ungradeable, with no error on either side. Fixed in `006_submission_marks_task_submitted.sql`. There's a test that asserts the state Admin-web actually queries, not just that the action returned OK, and another that covers the database *without* `006` applied: the work still saves, and the student is told it hasn't reached anyone rather than assuming it has.
-
-**Two wireframe corrections.** Badge colours were the inverse of Admin-web's (Open as warning, Grading as neutral) — the same task changed colour depending on which app you opened it in, so both now follow Admin's semantically-correct reading. And "Draft" wasn't a real status: `tasks.status` has no such value, so a self-created task is simply `open`, distinguished by a "Self-created ·" prefix the way Admin-web does it.
-
-**The Home preview and the Tasks screen share one query module.** They were already diverging: Home formatted deadlines with `toLocaleDateString`, which renders in the browser's zone and told a travelling student the wrong day, while Admin-web pins `Africa/Douala`. Both now read through `src/lib/task-queries.ts`. Neither filters by `assigned_to` — `tasks_select` already scopes to the current user, and an explicit filter would both duplicate the policy and hide self-created tasks, which match on `created_by`.
-
-**Attendance is built end-to-end:** today's session for the student's enrolled program, a large check-in button, attendance rate and sessions-attended, and history with Present/Excused/Absent badges matching Admin-web's roster exactly.
-
-**No offline queue, and the wireframe's promise of one was removed.** The card read "Works offline — syncs when you're back online"; this app can't honour that. `Bauhaven-Architecture-Plan.md` §3 gives web clients best-effort caching and reserves queued writes for the native clients' Drift storage — and a web page genuinely can't guarantee a queued write ever syncs, since the tab closes, the browser evicts storage, and there's no durable background sync in this stack. For attendance specifically a false "saved, will sync" is the worst available failure: the student believes they're present and the register disagrees. The card now says a connection is needed, a failure is a plain error with a retry, and there's a test asserting the old wording never comes back. That fix also surfaced a contradiction *inside* §3 — one line gave web best-effort caching, the next said attendance queues "regardless of client". Corrected there too.
-
-**Check-in is three outcomes, not ok/error.** Success, already-recorded, and refused by RLS mean genuinely different things to someone standing in a doorway. "Already recorded" is announced as a `status` rather than an `alert` — nothing failed and nothing was lost. A refusal from `attendance_records_insert` (not actively enrolled in the session's program) is an expected, handled case, not a bug to route around: the page scopes sessions to the student's program, but the policy is the authority and the two can disagree — an enrolment withdrawn between load and tap, or a stale tab.
-
-**The duplicate check is the app's job, because the schema has no unique constraint on `(session_id, user_id)`.** A second insert would succeed and leave two standing rows for one session — the double-count the append-only chain exists to prevent, inflating the student's own rate. The action resolves the existing record first and writes nothing if one stands.
-
-**The Home preview's attendance rate was wrong twice over.** It computed `present ÷ all rows`, which counted a Staff correction *and* the row it corrected as two sessions, and counted an excused absence against the student. `src/lib/append-only.ts` is ported from Admin-web to collapse corrections, excused sessions are excluded from the denominator (an approved absence is the system saying it doesn't count against you), and both screens now share one function. **This changes the number Home used to show.**
-
-**Requests is built — the submitting half only.** A student picks a first and last day away, gives a reason, and sees their own past requests with status badges, reachable from a Home entry point that didn't exist (the wireframe's three-up quick-action row was never built; only "Request absence" has a screen behind it, so it ships as one full-width row rather than two dead buttons).
-
-**The approval half is missing from the database, not just from the UI — and that's the thing to carry forward.** `requests` has SELECT and INSERT policies and *nothing else*: no UPDATE, so no row can leave `'pending'`, by anyone, including an Admin. `request_approvals` has SELECT and UPDATE but **no INSERT**, so no approver row can be created either. An Admin-web approval screen therefore needs a migration first, in the same family as `004_submission_grading_rls.sql` and `005_finance_approval_rls.sql`. That migration is deliberately not written here, because its `with check` has to encode the Core spec's quorum rule and two inputs to it don't exist: nothing says *which* Staff member approves a given student's request (`users` has no supervisor link), and nobody has decided whether approver rows are created at submission or lazily at first review. Guessing either would seed rows the approval screen then has to work around.
-
-**So the screen says approvals aren't handled in the app yet, in as many words.** Submitting is genuinely useful today — `requests_select` lets Staff and Admin read every request, so the information reaches them — but there is nowhere to record a decision. Implying otherwise would be the same class of promise as Attendance's since-removed "works offline". For the same reason there's no cancel control: with no UPDATE or DELETE policy a student cannot withdraw a request, and a button that always failed would be worse than its absence.
-
-**`status` is never sent on insert; `type` always is.** The column defaults to `'pending'` (checked in `001`, not assumed), and the quorum rule auto-approves when the company has exactly one Admin — whatever implements that would be fighting a client that hardcoded `'pending'`. `type` is the opposite case: no check constraint, and what the student is asking for is a fact this client knows.
-
-**This does not close Admin-web's Attendance TODO, and it's a two-sided gap.** Feature #18's auto-excuse from an approved absence Request is still marked `TODO(requests)` in Admin-web, because it needs an *approved* state that nothing can currently produce. Both halves are the same feature: no approval screen here, and no derived excuse there.
-
-**Issue reporting is built — the submitting half only.** A student picks a category, describes the problem, and sees their own past reports with status badges. Home's quick-action row is now a two-column grid (Request absence, Report an issue); Share feedback still has no screen, so it stays out rather than becoming a dead button.
-
-**"Issue reports route to Staff by category" is not implemented, and never was.** Checked against the migrations rather than taken from the Core spec: the word "category" appears in exactly two places in the whole schema — the `issue_reports.category` column (`text not null default 'general'`, **no check constraint**) and the index `idx_issue_reports_status_category`. No per-category staff assignment table exists, and nothing links a category to `user_roles.staff_sub_role` or to a permission. `issue_reports_select` and `issue_reports_update` both gate on plain `auth_is_admin_or_staff()` with **no category arm**, so any Staff member or Admin can read *and resolve* any report. The category is a filterable label, not a destination. Core spec annotated.
-
-**The category list was chosen here, because nothing upstream enumerates it:** `equipment` (Equipment or facilities — the wireframe's own example), `program` (Course or program), `access` (Account or access), `safety` (Safety or wellbeing), `general` (Something else). The first two mirror the nullable `asset_id` and `program_id` columns the schema already carries; `general` is kept verbatim because it's the column default, so a row written by anything that doesn't set the column lands in a bucket this screen displays. Stored values are stable lowercase ids, never the labels — a triage filter should match `'equipment'`, and the label has to translate EN/FR without rewriting rows.
-
-**Safety is its own category, and the screen is explicit it doesn't summon anyone.** With no routing and no triage screen, telling a student to wait would be wrong, so the footer says to tell a mentor directly as well. Same honesty rule as Requests and Attendance.
-
-**A row type was wrong: `issue_reports.status` is three states, not two.** The check constraint is `('open','in_progress','resolved')` and the type said `open | resolved`, which would have made a triaged report an impossible value the moment anything set it. Fixed; all three render as "Open", "Being looked at", "Resolved".
-
-**No triage screen exists anywhere, and this one needs no migration.** Unlike Requests approval, `issue_reports_update` already lets Admin/Staff resolve — what's missing is only a screen, despite Admin-web's sidebar wireframe carrying "Issue Reports" with a count badge.
-
-**Four open threads now point at the same missing surface** — an Admin-web approvals/triage view. Issue Reports resolution (buildable today, no migration), Testimony curation (needs only a one-line UPDATE policy, no design question), Requests approval (needs a migration *and* a quorum/routing design), Attendance auto-excuse (blocked on Requests approval, then free). Academy-web now has four student-facing submission flows whose staff-facing halves are all missing: students can put things into the system faster than anyone can take them out. Academy's remaining scope is Profile alone, so this is the moment to settle it.
-
-**Testimony is built — the submitting half only.** One free-text field per the wireframe, plus the student's own past testimonies with status. Home's quick-action row is now the wireframe's full three-up grid.
-
-**One form field, two database columns, and the choice is made server-side.** `testimonies` has separate `content_en` and `content_fr`, but which one a student's words belong in is answered by `users.preferred_language` (`not null default 'en' check in ('en','fr')`) — not by asking. Showing both boxes would have been the easier build and the wrong product: it asks someone to translate their own testimonial, which is a translator's job and not a condition of saying something nice. The unused column stays **null**, never a copy — duplicating would tell the public Site that the French text *is* the English translation, and English readers would be shown French as though it were theirs.
-
-**That needed a migration: `007_testimonies_bilingual_content.sql`.** `content_en` was `text not null` while `content_fr` was nullable, encoding "every testimony is written in English, French is an optional translation". Right for editorial content (`pages`, `portfolio_entries`), wrong for a person's own words: a French-speaking student — a value `preferred_language` explicitly allows, in a bilingual country — could only have had their words stored in a column named for English, or a failed insert. The constraint is now "at least one language present", via a table check. Safe to apply: nothing reads `testimonies` yet, and no existing row can violate it.
-
-**This is *content* language and needed no next-intl. Interface language still does.** The two are different problems — the schema models the first with `_en`/`_fr` columns and `users.preferred_language`; the second needs the i18n library that has **never been set up in either app**, despite being in the Tech Stack doc from the start. Every label, button, error and empty state in Admin-web and Academy-web is a hard-coded English string, including this form's. Second feature to run into it (Content Editor needed it for content, this for chrome), and every screen shipped meanwhile adds strings to extract later.
-
-**`program_id` is filled server-side from the active enrollment** — a public pull-quote is about a program, and enrolling already said which one. Nullable, so someone between programs can still say something. `status` isn't sent: it defaults to `'submitted'`, and publishing is curation.
-
-**No consent gate, per the Project Brief's "Known open items"** — consent is deferred, not decided, the same call Content Editor made for `portfolio_entries`. Inventing an opt-in checkbox would quietly decide it. The screen says what the policies actually guarantee: Bauhaven may feature this, and nothing publishes automatically (`testimonies` has no UPDATE policy, so no row reaches `'published'` today). The deferral bites harder here — a student cannot withdraw a testimony either, since the table has SELECT and INSERT and nothing else. The Project Brief item now names testimonies alongside portfolio entries.
-
-**This is the one Academy query that must filter by the caller itself.** `testimonies_select` is `user_id = auth.uid() or status = 'published' or auth_is_admin_or_staff()`, and that middle arm is **not scoped to the caller** — trusting RLS the way the task, request and issue-report queries do would have made a screen headed "Your testimonies" list every published testimony in the company. `attendance_sessions_select` being `using (true)` is the other unscoped policy; this is the more dangerous one, because these rows belong to identifiable other people.
-
-**Profile is built, and it closes out Academy-web's screen set.** Initials avatar (or the photo, if a URL is ever set), name and email, a working language toggle, links to Testimony/Requests/Report, read-only contact details, a read-only Roles list, and sign-out.
-
-**Nothing needed a migration — the schema was already ahead of the apps.** `users` carries `name`, `email`, `phone`, `location`, `profile_photo_url` and `preferred_language` (`not null default 'en' check in ('en','fr')`); `user_roles` carries `role`, `staff_sub_role`, `program_id` and `status`. Checked before assuming, and everything the wireframe draws is storable today.
-
-**The language toggle is real, not a placeholder — and it already has a consumer.** It writes `users.preferred_language`, which the testimony form reads to decide whether a student's words go to `content_en` or `content_fr`. Flipping it changes where the next testimony is stored. **What it does not do is translate the interface,** and the screen says so in as many words, because letting someone tap FR and conclude the app is broken is worse than admitting the gap. **Full next-intl setup is recommended as its own next task** — it spans both apps, touches every shipped screen, and needs routing/catalogue decisions. Third time this has been flagged; this pass did the half that could be done honestly in one screen rather than deferring silently again.
-
-**Contact details display but don't edit, deliberately.** The columns exist and `users_update_own` would allow the writes, but `email` and `phone` are also sign-in credentials and `public.users` holds them separately from `auth.users` — changing one without the other silently desynchronises an account from its login. That needs `supabase.auth.updateUser` plus re-verification, which is its own work; `location` alone would have been an edit control for one field of three. No photo upload either: `profile_photo_url` is a URL column and no Storage bucket is configured, so initials are the normal case rather than the fallback.
-
-**Roles are read-only. The switcher is still not built** — third pass, and the first to ship something in its place. Listing what someone *is* needs a query; switching which role a session *acts as* needs somewhere to persist that and screens whose content varies by it. Neither exists, and a dropdown that changed nothing would be worse than an honest list. It is the one named M3 gate item outstanding.
-
-**On the profile switcher's history:** the wireframe shows its entry point ("Viewing as Intern ▾" on Home) and it's a Must in both the Core and Academy feature specs. It was excluded from the Auth pass because it needs a real notion of which role a session is *acting as*; Profile now reads `user_roles` and lists them, so the lookup exists — what's still missing is the acting-as concept and screens whose content varies by role. See `Bauhaven-Architecture-Plan.md` §6, "Auth as built".
-
-**Invitation acceptance lives here too.** `/invite/[token]` is the route a student, intern or holiday participant lands on — Admin-web sends the invitation, Academy is where a learner accepts it, because landing in Admin would give them an app they can't use anything in. Middleware lets `/invite` through without a session (the whole point is that they have no account yet) and *with* one (an existing account can be invited to a second role, and someone who confirmed their email comes back to the same link).
-
-**No service-role key.** Accepting runs as the invitee through the two `security definer` RPCs added by `009_invitations_and_onboarding.sql`. `signUp` uses the address from the invitation, never one typed into the form — otherwise whoever found a forwarded link could redeem it under their own address — and `redeem_invitation` re-checks that the signed-in account's email matches before granting anything. The role comes from the invitation; there is no role field on the form.
-
-**Accepting an invitation that carries a program also enrols you**, so a student who applied through the public site arrives with an account, a role and an enrolment in one step rather than three.
-
-## A genuinely tricky bug worth knowing about
-
-Every Supabase query on this project's dashboard was silently typed as `never`, even though the code looked correct and the `Database` type appeared structurally sound. Root cause, confirmed by direct empirical testing (not guessing): `@supabase/postgrest-js` requires the schema type to satisfy `Record<string, GenericTable>`, and a plain `interface`-declared Row type — despite having an identical shape to a `type` alias — does **not** satisfy `Record<string, unknown>` in this specific conditional-type context, while a `type` alias with the exact same fields does. All Row types in `src/types/database.ts` are `type` aliases, not `interface`s, for exactly this reason. If you regenerate this file with `supabase gen types`, it already outputs `type`, so this won't resurface — but hand-editing back to `interface` would silently reintroduce it.
+- `npx tsc --noEmit` — clean
+- `npm run lint` — clean
+- `npm test` (Vitest) — 127 tests. Database access is tested against a stub client (`src/test/fake-supabase.ts`) that
+  records every read and write.
+- `npm run build` — clean
 
 ## Setup
 
-Same as Admin-web: `npm install`, copy `.env.example` → `.env.local` with real Supabase values, `npm run dev`. (`.env.example` didn't actually exist until the auth pass, and `.gitignore`'s `.env*` would have swallowed it anyway — both fixed.)
+1. `npm install`
+2. Copy `.env.example` to `.env.local` and fill in the Bauhaven Supabase project's URL and anon key
+3. `npm run dev`
 
-## Next steps
+## Things worth knowing
 
-1. **next-intl setup across both apps** — recommended as its own dedicated task, before more screens are built. Every screen shipped meanwhile is more strings to extract
-2. **Admin-web triage/approvals surface**, in dependency order: Issue Reports resolution (buildable now), Testimony curation (one-line UPDATE policy), then the Requests-approval migration and screen, which also unblocks Admin-web's attendance auto-excuse
-3. The **profile switcher** for users holding more than one active role — the one named M3 gate item still outstanding
-4. **"View performance summary"** (Academy feature #12, a Must) — unbuilt, and named in no milestone's gate list
-5. Generate real types once a Supabase project exists, same command as Admin-web
+1. **A `"use server"` file can only export async functions.** Schemas live in `src/lib/schemas/`.
+2. **Personal screens filter by the signed-in person explicitly.** A mentor or staff member can legitimately see other
+   people's rows, and one account can hold both kinds of role; Academy's screens are only ever about the person holding
+   the session.
+3. **Times are Bauhaven's (Africa/Douala),** wherever the learner is — a deadline an hour out is the difference between
+   on time and late.

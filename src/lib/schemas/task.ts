@@ -2,70 +2,67 @@ import { z } from "zod";
 
 // Its own module, not task-actions.ts — a "use server" file can only export async
 // functions, and a schema exported from one silently isn't the real schema by the time a
-// client component imports it. Same rule the auth schema follows, for the same reason.
-
-/** Mirrors `tasks.status`'s check constraint exactly. */
-export const TASK_STATUSES = ["open", "submitted", "graded", "archived"] as const;
-
-export type TaskStatus = (typeof TASK_STATUSES)[number];
-
-const MAX_URL_LENGTH = 2000;
-const MAX_TITLE_LENGTH = 200;
-const MAX_DESCRIPTION_LENGTH = 2000;
+// client component imports it.
 
 /**
- * Submitting work.
- *
- * `submissions.content_url` is the only column on the table that carries the work
- * itself — there is no file storage and no body text, so a submission *is* a link to
- * something hosted elsewhere (a repo, a deployed page, a design file). The column is
- * nullable in the schema, but a submission with no link is a row that says "I'm done"
- * and gives a grader nothing to look at, so this requires one.
+ * How a task is handed in (`tasks.submission_type`). File uploads aren't available yet —
+ * there's nowhere to store them — so a file task is handed in as a link to the file.
  */
-export const submissionSchema = z.object({
-  content_url: z
+export const SUBMISSION_TYPES = ["text", "link", "file", "mixed", "none"] as const;
+export type SubmissionType = (typeof SUBMISSION_TYPES)[number];
+
+const MAX_TEXT_LENGTH = 20_000;
+const MAX_URL_LENGTH = 2000;
+
+/** Empty or whitespace-only becomes null. */
+const optional = (max: number, message: string) =>
+  z
     .string()
     .trim()
-    .min(1, "Add a link to your work")
-    .max(MAX_URL_LENGTH, "That link is too long")
-    .refine((value) => /^https?:\/\//.test(value), {
-      error: "Use a full link starting with http:// or https://",
-    }),
+    .max(max, message)
+    .nullable()
+    .transform((value) => (value === null || value === "" ? null : value));
+
+/**
+ * Handing in work: some text, a link, or both. Which of them the task needs is checked by
+ * the Server Action against the task itself (`requiredParts`), not taken from the form.
+ */
+export const submissionSchema = z.object({
+  text_content: optional(MAX_TEXT_LENGTH, "That's too long to hand in here"),
+  link_url: optional(MAX_URL_LENGTH, "That link is too long").refine(
+    (value) => value === null || /^https?:\/\//.test(value),
+    { error: "Use a full link starting with http:// or https://" }
+  ),
 });
 
 export type SubmissionInput = z.infer<typeof submissionSchema>;
 
-export const EMPTY_SUBMISSION: SubmissionInput = { content_url: "" };
+export const EMPTY_SUBMISSION: SubmissionInput = { text_content: null, link_url: null };
 
-/**
- * Creating your own task.
- *
- * Only reachable by someone holding the individual `auth_has_permission('tasks','create')`
- * override — see Bauhaven-Admin-Feature-Spec.md §8. No `program_id` and no `assigned_to`
- * field: a self-created task is assigned to its creator by definition, and the Server
- * Action fills both from the session rather than trusting either from the client.
- */
-export const selfTaskSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "Give your task a title")
-    .max(MAX_TITLE_LENGTH, `Keep the title under ${MAX_TITLE_LENGTH} characters`),
-  description: z
-    .string()
-    .trim()
-    .max(MAX_DESCRIPTION_LENGTH, "That description is too long")
-    .nullable()
-    .transform((value) => (value === null || value === "" ? null : value)),
-  /** `datetime-local` wall-clock time, read as Cameroon's zone by the Server Action. */
-  deadline: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Use the date and time picker")
-    .nullable(),
-});
+/** What a task's submission type asks for. `none` means nothing is handed in here. */
+export function requiredParts(type: string): { text: boolean; link: boolean; either: boolean } {
+  switch (type) {
+    case "text":
+      return { text: true, link: false, either: false };
+    case "link":
+    case "file":
+      return { text: false, link: true, either: false };
+    case "none":
+      return { text: false, link: false, either: false };
+    default:
+      // "mixed", and anything newer: at least one of the two.
+      return { text: false, link: false, either: true };
+  }
+}
 
-export type SelfTaskInput = z.infer<typeof selfTaskSchema>;
+/** The first thing missing from a submission for this type of task, or null if it's complete. */
+export function missingPart(type: string, input: SubmissionInput): string | null {
+  const needs = requiredParts(type);
+  if (needs.text && !input.text_content) return "Write your answer before handing it in.";
+  if (needs.link && !input.link_url) return "Add a link to your work before handing it in.";
+  if (needs.either && !input.text_content && !input.link_url) return "Add your answer or a link to your work.";
+  return null;
+}
 
-export const EMPTY_SELF_TASK: SelfTaskInput = { title: "", description: null, deadline: null };
-
-export const taskIdSchema = z.uuid("That isn't a valid task reference");
+export const assignmentIdSchema = z.uuid("That isn't a valid task reference");
+export const idempotencyKeySchema = z.uuid("Reload the page and try again");
