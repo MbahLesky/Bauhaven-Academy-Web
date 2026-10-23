@@ -1,15 +1,12 @@
 /**
- * Screens that are built but whose database side has not been applied yet.
+ * Screens whose database side is tracked in `Bauhaven-Platform/supabase/migrations/`
+ * (`0034_absence_requests_and_issue_reports.sql`, mirrored in `Bauhaven-Platform/supabase/proposed/04_`).
  *
- * Each names the reviewed change in `Bauhaven-Platform/supabase/proposed/` it waits on.
- * Until the project owner applies it, the table doesn't exist, so the screen shows a plain
- * notice instead of an error — and its code stays here, ready.
- *
- * **To switch one on:** once its file has been applied, flip the flag to `true`.
+ * Both features are enabled now that the platform migrations are unified in `Bauhaven-Platform`.
  */
 export const DATABASE_READY = {
-  absenceRequests: false,
-  issueReports: false,
+  absenceRequests: true,
+  issueReports: true,
 } as const;
 
 export type PendingFeature = keyof typeof DATABASE_READY;
