@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
       <header className="flex h-14 shrink-0 items-center px-5">
-        <span className="font-display text-sm font-bold">Bauhaven Academy</span>
+        <span className="font-display text-sm font-bold">Bauhaven Hub</span>
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pb-24">{children}</main>

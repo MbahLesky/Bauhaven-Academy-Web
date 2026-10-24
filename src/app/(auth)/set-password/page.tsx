@@ -48,14 +48,14 @@ export default function SetPasswordPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-background px-5 py-12">
       <div className="mb-8 text-center">
-        <span className="font-display text-lg font-bold">Bauhaven Academy</span>
+        <span className="font-display text-lg font-bold">Bauhaven Hub</span>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="rounded-xl border border-neutral-200 bg-white p-6" noValidate>
         <h1 className="font-display mb-1 text-xl font-bold">Welcome to Bauhaven</h1>
         <p className="mb-6 text-sm text-neutral-500">
           Choose a password for your account — at least {MIN_PASSWORD_LENGTH} characters. You&apos;ll use it to sign
-          in here and in the Bauhaven Academy app.
+          in here and in the Bauhaven Hub app.
         </p>
 
         <div className="mb-4">

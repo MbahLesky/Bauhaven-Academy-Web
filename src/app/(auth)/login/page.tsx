@@ -44,7 +44,7 @@ export default function LoginPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-background px-5 py-12">
       <div className="mb-8 text-center">
         {/* Wordmark only — real logo asset not yet provided, see Bauhaven-Brand-Guidelines.md */}
-        <span className="font-display text-lg font-bold">Bauhaven Academy</span>
+        <span className="font-display text-lg font-bold">Bauhaven Hub</span>
       </div>
 
       <form

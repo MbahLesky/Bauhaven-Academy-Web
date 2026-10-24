@@ -9,7 +9,7 @@ import "@fontsource/archivo/700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bauhaven Academy",
+  title: "Bauhaven Hub",
   description: "Your dashboard, tasks, and attendance at Bauhaven.",
 };
 

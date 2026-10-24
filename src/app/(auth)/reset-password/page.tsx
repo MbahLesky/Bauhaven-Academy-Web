@@ -59,7 +59,7 @@ export default function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6">
       <div className="w-full sm:max-w-sm">
         <div className="mb-8 text-center">
-          <span className="font-display text-lg font-bold">Bauhaven Academy</span>
+          <span className="font-display text-lg font-bold">Bauhaven Hub</span>
         </div>
 
         <div className="rounded-xl border border-neutral-200 bg-white p-6 sm:p-8">
