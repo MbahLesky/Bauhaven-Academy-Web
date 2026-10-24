@@ -112,6 +112,12 @@ export default function LoginPage() {
         <Button type="submit" className="min-h-12 w-full" disabled={isPending}>
           {isPending ? "Signing in…" : "Sign in"}
         </Button>
+
+        <div className="mt-5 border-t border-neutral-100 pt-4 text-center">
+          <Link href="/activate" className="text-xs font-semibold text-accent hover:underline">
+            Have an activation code? Activate your account &rarr;
+          </Link>
+        </div>
       </form>
 
       <p className="mt-6 text-center text-xs text-neutral-500">

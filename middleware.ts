@@ -38,18 +38,14 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
 
   /*
-   * The emailed-link chain — password resets and invitations — all of which has to work for
-   * somebody who can't sign in yet, which is the entire reason they're here.
-   *
-   * `/auth/confirm` is where Supabase's emailed link lands, and it runs *before* a session
-   * exists: it's the thing that creates one. `/reset-password` and `/set-password` are
-   * reached with that session, so they'd pass the check below anyway; they're named here so
-   * the rule reads as one flow rather than coincidences.
+   * The emailed-link and activation chain — password resets, invitations, and activation codes —
+   * all of which must work for someone who isn't signed in yet.
    */
   const isEmailLinkRoute =
     request.nextUrl.pathname.startsWith("/forgot-password") ||
     request.nextUrl.pathname.startsWith("/reset-password") ||
     request.nextUrl.pathname.startsWith("/set-password") ||
+    request.nextUrl.pathname.startsWith("/activate") ||
     request.nextUrl.pathname.startsWith("/auth/confirm");
 
   if (!user && !isAuthRoute && !isEmailLinkRoute) {
