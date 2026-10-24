@@ -99,3 +99,4 @@ export async function activateWithCode(
     return { ok: false, error: "Activation failed. Please try again." };
   }
 }
+
