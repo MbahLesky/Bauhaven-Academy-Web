@@ -76,18 +76,23 @@ export async function setNewPassword(input: NewPasswordInput): Promise<NewPasswo
  */
 async function resetRedirectUrl(): Promise<string> {
   const envUrl = (process.env.NEXT_PUBLIC_HUB_URL || process.env.NEXT_PUBLIC_ACADEMY_URL || "").trim().replace(/\/$/, "");
-  if (envUrl && !envUrl.includes("0.0.0.0")) {
+  if (envUrl && !envUrl.includes("0.0.0.0") && !envUrl.includes("localhost")) {
     return `${envUrl}/auth/confirm?next=/reset-password`;
   }
 
   try {
     const h = await headers();
     const host = h.get("x-forwarded-host") || h.get("host");
-    if (host && !host.includes("0.0.0.0")) {
-      const proto = h.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+    if (host && !host.includes("0.0.0.0") && !host.includes("localhost")) {
+      const proto = h.get("x-forwarded-proto") || "https";
       return `${proto}://${host}/auth/confirm?next=/reset-password`;
     }
   } catch {}
+
+  // Local development fallback
+  if (envUrl && envUrl.includes("localhost")) {
+    return `${envUrl}/auth/confirm?next=/reset-password`;
+  }
 
   return "https://hub.bauhaven.com/auth/confirm?next=/reset-password";
 }
