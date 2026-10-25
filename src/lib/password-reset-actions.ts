@@ -75,24 +75,30 @@ export async function setNewPassword(input: NewPasswordInput): Promise<NewPasswo
  * 3. Default production URL https://hub.bauhaven.com
  */
 async function resetRedirectUrl(): Promise<string> {
+  const isProduction = process.env.NODE_ENV === "production";
   const envUrl = (process.env.NEXT_PUBLIC_HUB_URL || process.env.NEXT_PUBLIC_ACADEMY_URL || "").trim().replace(/\/$/, "");
-  if (envUrl && !envUrl.includes("0.0.0.0") && !envUrl.includes("localhost")) {
+
+  // In production, reject any localhost, 127.0.0.1, or 0.0.0.0 URL completely
+  if (isProduction) {
+    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("0.0.0.0") && !envUrl.includes("127.0.0.1")) {
+      return `${envUrl}/auth/confirm?next=/reset-password`;
+    }
+    return "https://hub.bauhaven.com/auth/confirm?next=/reset-password";
+  }
+
+  // In development, respect configured env URL
+  if (envUrl) {
     return `${envUrl}/auth/confirm?next=/reset-password`;
   }
 
   try {
     const h = await headers();
     const host = h.get("x-forwarded-host") || h.get("host");
-    if (host && !host.includes("0.0.0.0") && !host.includes("localhost")) {
-      const proto = h.get("x-forwarded-proto") || "https";
+    if (host && !host.includes("0.0.0.0")) {
+      const proto = h.get("x-forwarded-proto") || "http";
       return `${proto}://${host}/auth/confirm?next=/reset-password`;
     }
   } catch {}
 
-  // Local development fallback
-  if (envUrl && envUrl.includes("localhost")) {
-    return `${envUrl}/auth/confirm?next=/reset-password`;
-  }
-
-  return "https://hub.bauhaven.com/auth/confirm?next=/reset-password";
+  return "http://localhost:3002/auth/confirm?next=/reset-password";
 }

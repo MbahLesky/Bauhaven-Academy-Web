@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { requestAndRegisterFcmToken } from "@/lib/firebase/fcm";
+import { requestAndRegisterFcmToken, onForegroundFcmMessage } from "@/lib/firebase/fcm";
 import { Bell, Check, X } from "lucide-react";
 
 export function PushNotificationBanner() {
@@ -10,18 +10,37 @@ export function PushNotificationBanner() {
   const [status, setStatus] = useState<"idle" | "success" | "denied">("idle");
 
   useEffect(() => {
-    // Only show if browser supports notifications, user hasn't chosen yet, and Firebase config exists
     if (
-      typeof window !== "undefined" &&
-      "Notification" in window &&
-      Notification.permission === "default" &&
-      process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+      typeof window === "undefined" ||
+      !("Notification" in window) ||
+      !process.env.NEXT_PUBLIC_FIREBASE_API_KEY
     ) {
+      return;
+    }
+
+    if (Notification.permission === "granted") {
+      // User has already granted permission: keep token registration synchronized in background
+      requestAndRegisterFcmToken().catch(() => {});
+    } else if (Notification.permission === "default") {
       const dismissed = localStorage.getItem("bauhaven_fcm_dismissed");
       if (!dismissed) {
         setShowPrompt(true);
       }
     }
+
+    // Handle incoming messages while the app is in the foreground
+    const unsubscribe = onForegroundFcmMessage((payload) => {
+      if (payload.notification?.title && Notification.permission === "granted") {
+        new Notification(payload.notification.title, {
+          body: payload.notification.body,
+          icon: "/favicon.ico",
+        });
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   async function handleEnable() {
@@ -66,7 +85,7 @@ export function PushNotificationBanner() {
 
       <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
         {status === "success" ? (
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-success">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
             <Check className="h-4 w-4" /> Enabled
           </span>
         ) : (

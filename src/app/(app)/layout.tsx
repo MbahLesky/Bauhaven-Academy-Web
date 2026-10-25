@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLearnerContext } from "@/lib/enrolment";
 import { NotEnrolledNotice } from "@/components/app-shell/NotEnrolledNotice";
+import { PushNotificationBanner } from "@/components/notifications/PushNotificationBanner";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -31,7 +32,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <span className="font-display text-sm font-bold">Bauhaven Hub</span>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-5 pb-24">{children}</main>
+      <main className="flex-1 overflow-y-auto px-5 pb-24">
+        <PushNotificationBanner />
+        {children}
+      </main>
 
       <nav className="fixed bottom-0 left-1/2 flex w-full max-w-md -translate-x-1/2 border-t border-neutral-200 bg-white px-2 pb-2 pt-2">
         {NAV_ITEMS.map((item) => (

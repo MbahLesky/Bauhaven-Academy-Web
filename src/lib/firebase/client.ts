@@ -32,3 +32,4 @@ export async function getFirebaseMessagingInstance(): Promise<Messaging | null> 
     return null;
   }
 }
+
