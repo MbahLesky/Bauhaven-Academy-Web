@@ -28,8 +28,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center px-5">
-        <span className="font-display text-sm font-bold">Bauhaven Hub</span>
+      <header className="flex h-14 shrink-0 items-center gap-2.5 px-5 border-b border-neutral-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Bauhaven Hub" className="h-6 w-6 rounded-md object-contain" />
+        <span className="font-display text-sm font-bold text-neutral-900">Bauhaven Hub</span>
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pb-24">
