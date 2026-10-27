@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -14,6 +14,16 @@ export default function LoginPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Catch emailed links that land on / or /login with URL hash tokens (type=recovery, invite, signup)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hash = window.location.hash;
+      if (hash.includes("access_token") || hash.includes("type=")) {
+        router.replace(`/auth/confirm${window.location.search}${hash}`);
+      }
+    }
+  }, [router]);
 
   const {
     register,
@@ -37,93 +47,81 @@ export default function LoginPage() {
   }
 
   return (
-    // Academy is phone-first, so this is the mirror image of Admin's login: the
-    // full-width padded layout is the *design*, not the small-screen fallback,
-    // and the `max-w-md` column matches the app shell it hands off to rather
-    // than Admin's narrower desk-sized card.
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-background px-5 py-12">
-      <div className="mb-8 text-center">
-        {/* Wordmark only — real logo asset not yet provided, see Bauhaven-Brand-Guidelines.md */}
-        <span className="font-display text-lg font-bold">Bauhaven Hub</span>
-      </div>
-
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="rounded-xl border border-neutral-200 bg-white p-6"
-        noValidate
-      >
-        <h1 className="font-display mb-1 text-xl font-bold">Sign in</h1>
-        <p className="mb-6 text-sm text-neutral-500">
-          Your tasks, attendance, and progress.
-        </p>
-
-        <div className="mb-4">
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            // Phones default to autocapitalising the first letter, which quietly
-            // breaks an email address before it ever reaches validation.
-            autoCapitalize="none"
-            autoCorrect="off"
-            inputMode="email"
-            error={!!errors.email}
-            {...register("email")}
-          />
-          {errors.email && <p className="mt-1.5 text-xs text-danger">{errors.email.message}</p>}
+    // Mobile: full-width, padded to the screen edge. sm+: centered fixed-width
+    // card. Matches the login shell in Admin-web deliberately: one sign-in experience
+    // across both apps.
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6">
+      <div className="w-full sm:max-w-sm">
+        <div className="mb-8 text-center">
+          <span className="font-display text-lg font-bold">Bauhaven Hub</span>
         </div>
 
-        <div className="mb-6">
-          <div className="mb-1.5 flex items-baseline justify-between gap-2">
-            <label htmlFor="password" className="block text-sm font-medium">
-              Password
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="rounded-xl border border-neutral-200 bg-white p-6 sm:p-8"
+          noValidate
+        >
+          <h1 className="font-display mb-1 text-xl font-bold">Sign in</h1>
+          <p className="mb-6 text-sm text-neutral-500">Your tasks, attendance, and progress.</p>
+
+          <div className="mb-4">
+            <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
+              Email
             </label>
-            {/* Next to the field somebody is failing at, not buried under the button. */}
-            <Link href="/forgot-password" className="text-xs font-semibold text-accent">
-              Forgotten?
-            </Link>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              error={!!errors.email}
+              {...register("email")}
+            />
+            {errors.email && (
+              <p className="mt-1.5 text-xs text-danger">{errors.email.message}</p>
+            )}
           </div>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            error={!!errors.password}
-            {...register("password")}
-          />
-          {errors.password && (
-            <p className="mt-1.5 text-xs text-danger">{errors.password.message}</p>
+
+          <div className="mb-6">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <label htmlFor="password" className="block text-sm font-medium">
+                Password
+              </label>
+              <Link href="/forgot-password" className="text-xs font-semibold text-accent">
+                Forgotten?
+              </Link>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              error={!!errors.password}
+              {...register("password")}
+            />
+            {errors.password && (
+              <p className="mt-1.5 text-xs text-danger">{errors.password.message}</p>
+            )}
+          </div>
+
+          {serverError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              {serverError}
+            </div>
           )}
-        </div>
 
-        {serverError && (
-          <div
-            role="alert"
-            className="mb-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {serverError}
-          </div>
-        )}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Signing in…" : "Sign in"}
+          </Button>
 
-        {/* min-h-12 is 48px — comfortably past the 44px touch-target floor for the
-            one control on this screen that has to be easy to hit on a phone. */}
-        <Button type="submit" className="min-h-12 w-full" disabled={isPending}>
-          {isPending ? "Signing in…" : "Sign in"}
-        </Button>
-
-        <div className="mt-5 border-t border-neutral-100 pt-4 text-center">
-          <Link href="/activate" className="text-xs font-semibold text-accent hover:underline">
-            Have an activation code? Activate your account &rarr;
-          </Link>
-        </div>
-      </form>
-
-      <p className="mt-6 text-center text-xs text-neutral-500">
-        One Bauhaven account works here and across the rest of the platform. Ask an Admin
-        if you don&apos;t have one yet.
-      </p>
+          <p className="mt-6 text-center text-xs text-neutral-500">
+            Have an activation code?{" "}
+            <Link href="/activate" className="font-semibold text-accent hover:underline">
+              Activate your account
+            </Link>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

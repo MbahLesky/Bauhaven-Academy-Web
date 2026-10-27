@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getProfile, type Profile } from "@/lib/profile-queries";
-import { getInitials } from "@/lib/initials";
+import { ProfileHeaderEditor } from "@/components/profile/ProfileHeaderEditor";
 import { SignOutButton } from "@/components/profile/SignOutButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,15 @@ const PROFILE_LINKS = [
 ] as const;
 
 export default async function ProfilePage() {
-  // A failed read throws to error.tsx: a signed-in person always has a profile, so a blank
-  // one is a fault, not a state.
   const profile = await getProfile();
 
   return (
     <div className="pt-2">
-      <ProfileHeader profile={profile} />
+      <ProfileHeaderEditor
+        initialName={profile.name}
+        initialEmail={profile.email}
+        initialPhotoUrl={profile.photoUrl}
+      />
 
       <Card className="mb-5 divide-y divide-neutral-200">
         {PROFILE_LINKS.map((link) => (
@@ -45,32 +47,8 @@ export default async function ProfilePage() {
   );
 }
 
-function ProfileHeader({ profile }: { profile: Profile }) {
-  return (
-    <div className="mb-6 flex items-center gap-4">
-      {profile.photoUrl ? (
-        // next/image needs a configured remote host; photos aren't uploaded from Academy yet.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={profile.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="font-display flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-lg font-bold text-white"
-        >
-          {getInitials(profile.name)}
-        </div>
-      )}
-      <div className="min-w-0">
-        <h1 className="font-display truncate text-lg font-bold">{profile.name}</h1>
-        <p className="truncate text-sm text-neutral-500">{profile.email}</p>
-      </div>
-    </div>
-  );
-}
-
 /**
- * Contact and learner details, read-only. The email and phone are also sign-in details, and
- * changing them safely needs a re-verification flow of its own.
+ * Contact and learner details.
  */
 function ContactSection({ profile }: { profile: Profile }) {
   const details = [
@@ -86,12 +64,11 @@ function ContactSection({ profile }: { profile: Profile }) {
       <Card className="mb-5 divide-y divide-neutral-200">
         {details.map((detail) => (
           <Row key={detail.label} label={detail.label}>
-            {/* An empty field says so, rather than a blank that reads like a loading failure. */}
             <span className="truncate text-sm text-neutral-500">{detail.value ?? "Not set"}</span>
           </Row>
         ))}
       </Card>
-      <p className="-mt-3 mb-5 text-[11px] text-neutral-500">Ask your coordinator to update these for now.</p>
+      <p className="-mt-3 mb-5 text-[11px] text-neutral-500">Contact coordinator to update contact or academic info.</p>
     </>
   );
 }
