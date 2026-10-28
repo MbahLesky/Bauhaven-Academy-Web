@@ -204,6 +204,27 @@ type ParticipantFeedbackRow = {
   task_title: string | null;
 };
 
+type FinanceParticipantBalancesRow = {
+  charge_id: string;
+  enrolment_id: string | null;
+  legacy_participant_id: string | null;
+  profile_id: string | null;
+  participant_name: string | null;
+  participant_email: string | null;
+  charge_description: string;
+  currency: string;
+  original_amount: number;
+  discount_amount: number;
+  waiver_amount: number;
+  amount_due: number;
+  amount_paid: number;
+  outstanding_balance: number;
+  due_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  display_status: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -223,6 +244,7 @@ export type Database = {
     };
     Views: {
       participant_feedback: { Row: ParticipantFeedbackRow; Relationships: never[] };
+      finance_participant_balances: { Row: FinanceParticipantBalancesRow; Relationships: never[] };
     };
     Functions: {
       /** The caller's active role assignments, answered for `auth.uid()` only. */

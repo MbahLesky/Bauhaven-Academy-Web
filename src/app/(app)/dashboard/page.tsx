@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { getDueSoon, type MyTask } from "@/lib/task-queries";
 import { getAttendanceStats } from "@/lib/attendance-queries";
+import { getMyTuitionCoverage } from "@/lib/tuition-queries";
 import { formatEnrolmentStatus, getLearnerContext, programmeLabel } from "@/lib/enrolment";
 import { formatAssignmentStatus, STATUS_VARIANTS } from "@/lib/task-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TuitionCoverageCard } from "@/components/dashboard/TuitionCoverageCard";
 
 // Per-user dashboard — never statically cached across users, and this also means
 // `npm run build` doesn't need real Supabase credentials to succeed.
@@ -20,7 +22,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 export default async function DashboardPage() {
-  const [learner, dueSoon, attendance] = await Promise.all([
+  const [learner, dueSoon, attendance, tuition] = await Promise.all([
     getLearnerContext(),
     // Home degrades rather than fails: a broken preview shouldn't cost the whole screen.
     getDueSoon(PREVIEW_TASK_COUNT).catch((error: unknown) => {
@@ -28,6 +30,10 @@ export default async function DashboardPage() {
       return null;
     }),
     getAttendanceStats(),
+    getMyTuitionCoverage().catch((error: unknown) => {
+      console.error("Tuition preview failed:", error);
+      return null;
+    }),
   ]);
 
   const enrolment = learner?.current ?? null;
@@ -48,6 +54,8 @@ export default async function DashboardPage() {
           <div className="mt-1 text-xs opacity-90">{formatEnrolmentStatus(enrolment.status)}</div>
         </Card>
       )}
+
+      {tuition && <TuitionCoverageCard coverage={tuition} />}
 
       <div className="mb-5 grid grid-cols-3 gap-2">
         {QUICK_ACTIONS.map((action) => (
