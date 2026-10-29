@@ -28,10 +28,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2.5 px-5 border-b border-neutral-100">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Bauhaven Hub" className="h-6 w-6 rounded-md object-contain" />
-        <span className="font-display text-sm font-bold text-neutral-900">Bauhaven Hub</span>
+      <header className="flex h-14 shrink-0 items-center justify-between px-5 border-b border-neutral-100">
+        <div className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Bauhaven Hub" className="h-6 w-6 rounded-md object-contain" />
+          <span className="font-display text-sm font-bold text-neutral-900">Bauhaven Hub</span>
+        </div>
+        <a
+          href="/downloads/bauhaven-hub.apk"
+          download="bauhaven-hub.apk"
+          className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/20 transition"
+          title="Download Android App"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Get App</span>
+        </a>
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pb-24">

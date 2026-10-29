@@ -40,6 +40,22 @@ export default async function ProfilePage() {
       <ContactSection profile={profile} />
       <ProgrammesSection programmes={profile.programmes} />
 
+      <Card className="mt-5 p-4 bg-neutral-50/70 border-neutral-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-sm text-neutral-900">Bauhaven Hub for Android</div>
+            <div className="text-xs text-neutral-500">v1.1.2 (Build 4) • Standalone APK</div>
+          </div>
+          <a
+            href="/downloads/bauhaven-hub.apk"
+            download="bauhaven-hub.apk"
+            className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
+          >
+            Download
+          </a>
+        </div>
+      </Card>
+
       <div className="mt-6">
         <SignOutButton />
       </div>
