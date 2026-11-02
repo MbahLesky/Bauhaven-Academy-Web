@@ -55,10 +55,18 @@ export async function submitAbsenceRequest(input: AbsenceRequestInput): Promise<
   }
 
   // Best-effort push notification to admin topic
+  const profile = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", learner.userId)
+    .maybeSingle();
+
+  const requesterName = profile.data?.full_name || "A participant";
+
   sendPushNotification({
     topic: "admin_requests",
     title: "New Absence Request",
-    body: `${learner.name || "A participant"} submitted an absence request (${parsed.data.start_date} to ${parsed.data.end_date}).`,
+    body: `${requesterName} submitted an absence request (${parsed.data.start_date} to ${parsed.data.end_date}).`,
     url: "/requests",
     type: "new_absence_request",
     data: {
