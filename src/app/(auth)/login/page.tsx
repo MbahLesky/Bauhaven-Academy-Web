@@ -72,6 +72,9 @@ export default function LoginPage() {
               id="email"
               type="email"
               autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              inputMode="email"
               error={!!errors.email}
               {...register("email")}
             />

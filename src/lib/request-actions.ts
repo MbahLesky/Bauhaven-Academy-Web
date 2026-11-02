@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLearnerContext } from "@/lib/enrolment";
 import { isDatabaseReady } from "@/lib/database-readiness";
 import { ABSENCE_REQUEST_TYPE, absenceRequestSchema, type AbsenceRequestInput } from "@/lib/schemas/request";
+import { sendPushNotification } from "@/lib/push-dispatcher";
 
 export type RequestMutationResult = { error: string | null };
 
@@ -52,6 +53,18 @@ export async function submitAbsenceRequest(input: AbsenceRequestInput): Promise<
     console.error("Absence request insert failed:", error.code, error.message);
     return { error: error.code === RLS_VIOLATION_CODE ? REFUSED_MESSAGE : GENERIC_MESSAGE };
   }
+
+  // Best-effort push notification to admin topic
+  sendPushNotification({
+    topic: "admin_requests",
+    title: "New Absence Request",
+    body: `${learner.name || "A participant"} submitted an absence request (${parsed.data.start_date} to ${parsed.data.end_date}).`,
+    url: "/requests",
+    type: "new_absence_request",
+    data: {
+      requesterId: learner.userId,
+    },
+  }).catch((e) => console.warn("Absence request push notification failed:", e));
 
   revalidatePath("/requests");
   return { error: null };
